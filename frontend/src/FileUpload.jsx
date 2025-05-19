@@ -12,7 +12,7 @@ function FileUpload() {
 
   // --- Nuevo estado para el lenguaje de transcripción seleccionado ---
   // Inicialmente sin lenguaje seleccionado (solo resumen)
-  const [targetLanguage, setTargetLanguage] = useState(''); // Puedes usar un valor por defecto como 'None' o ''
+  const [targetLanguage, setTargetLanguage] = useState('');
 
   // Limpia estados anteriores al seleccionar un nuevo archivo
   const handleFileChange = (event) => {
@@ -69,52 +69,78 @@ function FileUpload() {
       });
 
       if (response.ok) {
-        setStatusMessage('Procesamiento completo. Preparando descarga...');
+        // --- Handle success response (expecting a ZIP) ---
+        setStatusMessage('Procesamiento completo. Preparando descarga del ZIP...'); // Updated message
         setMessageType('info');
 
-        const pdfBlob = await response.blob();
+        // Get the response body as a Blob (correct for binary data)
+        const fileBlob = await response.blob(); // Renamed from pdfBlob
 
+        // Get filename from Content-Disposition header
         const contentDisposition = response.headers.get('Content-Disposition');
-        let filename = 'analisis_descargado.pdf';
+        // Default filename if header is missing or invalid - use .zip extension
+        let filename = 'analisis_resultados.zip'; // Default filename for ZIP
         if (contentDisposition) {
           const filenameMatch = contentDisposition.match(/filename="(.+)"/);
           if (filenameMatch && filenameMatch[1]) {
+            // Use the filename from the header (should be a .zip name)
             filename = filenameMatch[1];
           }
         }
+        console.log("Nombre de archivo para descarga:", filename); // Log para verificar
 
-        const url = window.URL.createObjectURL(pdfBlob);
 
+        // Create object URL
+        const url = window.URL.createObjectURL(fileBlob); // Use fileBlob
+
+        // Set state for download link
         setDownloadUrl(url);
-        setDownloadFilename(filename);
-        setStatusMessage('Análisis completo. Haz clic para descargar el PDF.');
+        setDownloadFilename(filename); // Use the extracted or default .zip filename
+        setStatusMessage('Procesamiento completo. Haz clic para descargar el archivo ZIP.'); // Updated message
         setMessageType('success');
 
       } else {
-        setStatusMessage(`Error al procesar archivo (código: ${response.status} ${response.statusText}).`);
-        setMessageType('error');
-        console.error('Error response from backend:', response);
+        // --- Handle error response (backend returned non-200 status) ---
+         setStatusMessage(`Error al procesar archivo (código: ${response.status} ${response.statusText}).`);
+         setMessageType('error');
+         console.error('Error response from backend:', response);
 
-        try {
-            const errorDetails = await response.text();
-            const parser = new DOMParser();
-            const htmlDoc = parser.parseFromString(errorDetails, 'text/html');
-            // Intenta buscar el mensaje de error en el HTML de error de FastAPI (si devuelve HTML, aunque no es lo típico para 500)
-            // O si FastAPI devuelve JSON en caso de error (más típico), deberías parsear JSON: await response.json()
-            // Por ahora, intentamos buscar en un posible HTML o mostramos un extracto del texto plano
-            const errorMessageElement = htmlDoc.body.textContent ? htmlDoc.body : null; // Intenta obtener texto del body si no hay estructura específica
-            const backendErrorMessage = errorMessageElement ? errorMessageElement.textContent.slice(0, 300) + '...' : errorDetails.slice(0, 300) + '...'; // Usa el texto del body o un extracto
+         try {
+             // Attempt to read error details as text or JSON from backend
+             const errorDetailsText = await response.text(); // Read as text first
 
-            setStatusMessage(prevMsg => `${prevMsg} Detalles del Backend: ${backendErrorMessage}`);
-            console.error('Error details from backend:', errorDetails);
-        } catch (readError) {
-            console.error('Error al leer detalles de la respuesta de error o parsear HTML:', readError);
-            setStatusMessage(prevMsg => `${prevMsg} No se pudieron obtener detalles específicos del error.`);
-        }
+             // Try parsing as JSON if backend sends JSON errors
+             let backendErrorMessage = errorDetailsText.slice(0, 300) + '...'; // Default to text extract
+             try {
+                 const errorJson = JSON.parse(errorDetailsText);
+                 // Verifica si existe una clave 'error' (como en tus JSONResponse de error del backend)
+                 if (errorJson && errorJson.error) {
+                     backendErrorMessage = errorJson.error; // Usa el mensaje de error de la clave 'error'
+                 } else {
+                      // Si JSON parsing exitoso pero sin clave 'error' (otra estructura JSON inesperada)
+                      backendErrorMessage = 'Respuesta del backend fue JSON válido pero con estructura inesperada. Verifica la consola del navegador.';
+                      console.error('Respuesta JSON del backend:', errorJson);
+                 }
+             } catch (jsonParseError) {
+                 // Si JSON parsing falla, asume que es texto plano o HTML de error (como antes)
+                 console.warn('La respuesta del backend no fue JSON. Manejando como texto/HTML.', jsonParseError);
+                 // Se mantiene el extracto de texto como backendErrorMessage
+             }
+
+             // Actualiza el mensaje de estado con detalles del backend
+             setStatusMessage(prevMsg => `${prevMsg} Detalles del Backend: ${backendErrorMessage}`);
+             console.error('Detalles del error del backend:', errorDetailsText); // Log la respuesta original como texto
+
+         } catch (readError) {
+             console.error('Error al leer detalles de la respuesta de error:', readError);
+             setStatusMessage(prevMsg => `${prevMsg} No se pudieron obtener detalles específicos del error.`);
+         }
       }
 
     } catch (error) {
+      // --- Handle network errors or errors before response.ok (like "Failed to fetch") ---
       console.error('Error durante la subida o conexión:', error);
+      // Este catch a menudo captura errores de red o si la petición no pudo ni completarse al punto de tener un response.status
       setStatusMessage(`Error de conexión o subida: ${error.message}. Asegúrate de que el servidor FastAPI esté corriendo.`);
       setMessageType('error');
     } finally {
@@ -122,19 +148,32 @@ function FileUpload() {
     }
   };
 
-   // Maneja la descarga del archivo cuando el usuario hace clic en el enlace
+  // ... other state and useEffect ...
+
+  // Handles the download button click
   const handleDownloadClick = () => {
     if (downloadUrl) {
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = downloadFilename || 'analisis_descargado.pdf';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      // Usa downloadFilename que ya tiene la extensión .zip del backend, o el default .zip
+      a.download = downloadFilename || 'analisis_resultados.zip';
+      // No es estrictamente necesario añadirlo al body en la mayoría de navegadores modernos para el click programático
+      // document.body.appendChild(a);
+      a.click(); // Activa la descarga
+
+      // Limpiar la URL del objeto después de un pequeño retraso
+      setTimeout(() => {
+         window.URL.revokeObjectURL(downloadUrl);
+         console.log("Revocando URL de descarga.");
+      }, 100); // Pequeño retraso para asegurar que la descarga se inició
+      // Si lo añadiste al body, remuévelo aquí:
+      // if (a.parentElement) {
+      //    a.parentElement.removeChild(a);
+      // }
     }
   };
 
-   // Limpieza de la URL de descarga cuando el componente se desmonta o la URL cambia
+  // Limpieza de la URL de descarga cuando el componente se desmonta o la URL cambia
   React.useEffect(() => {
     return () => {
       if (downloadUrl) {
@@ -142,45 +181,56 @@ function FileUpload() {
         console.log("Revocando URL de descarga anterior.");
       }
     };
-  }, [downloadUrl]);
+  }, [downloadUrl]); // Depende de downloadUrl para limpiar la URL anterior cuando se setea una nueva
 
 
   return (
     <div className="file-upload-container">
-      <h2>Análisis de Archivos ZIP con IA</h2> {/* Título actualizado */}
-      <form onSubmit={(e) => e.preventDefault()}>
+      <h2>Análisis y Migración de Archivos con IA</h2> {/* Título actualizado */}
+      <form onSubmit={(e) => { e.preventDefault(); handleUpload(); }}> {/* Llama a handleUpload */}
+          <label htmlFor="archiveFile" className="file-input-label">Selecciona archivo ZIP</label>
           <input
             type="file"
             id="archiveFile"
             accept=".zip"
             onChange={handleFileChange}
             disabled={isUploading}
+            className="hidden-file-input" // Clase para ocultar el input nativo
           />
+          {selectedFile && <p className="selected-file-name">Archivo seleccionado: {selectedFile.name}</p>} {/* Muestra el nombre del archivo seleccionado */}
+
           <br/><br/> {/* Espacio entre input de archivo y opciones */}
 
           {/* --- Nuevo menú desplegable para seleccionar lenguaje de transcripción --- */}
           <div className="language-select-container"> {/* Contenedor para estilos */}
             <label htmlFor="targetLanguage">Transcribir COBOL a:</label>
             <select
-                id="targetLanguage"
-                value={targetLanguage} // Controlado por el estado
-                onChange={handleLanguageChange}
-                disabled={isUploading} // Deshabilita durante la subida/procesamiento
+              id="targetLanguage"
+              value={targetLanguage} // Controlado por el estado
+              onChange={handleLanguageChange}
+              disabled={isUploading} // Deshabilita durante la subida/procesamiento
             >
-                <option value="">Solo Resumir COBOL</option> {/* Opción por defecto (no transcribir) */}
-                <option value="Java">Java</option>
-                <option value="CSharp">C#</option> {/* Usaremos 'CSharp' como valor */}
-                <option value="Python">Python</option>
-                {/* Puedes añadir otros lenguajes si el modelo los soporta y quieres implementarlos */}
+              <option value="">Solo Resumir COBOL (No transcribir)</option> {/* Opción por defecto (no transcribir) */}
+              {/* Aquí podrías mapear una lista de lenguajes si la pasas como prop o la defines aquí */}
+              <option value="Java">Java</option>
+              <option value="Python">Python</option>
+              <option value="CSharp">C#</option> {/* Usaremos 'CSharp' como valor */}
+              <option value="JavaScript">JavaScript</option>
+              <option value="C++">C++</option>
+              <option value="Ruby">Ruby</option>
+              <option value="PHP">PHP</option>
+              <option value="Go">Go</option>
+              <option value="Swift">Swift</option>
+              <option value="Kotlin">Kotlin</option>
             </select>
           </div>
-           {/* --- Fin menú desplegable --- */}
+            {/* --- Fin menú desplegable --- */}
 
           <br/><br/> {/* Espacio entre opciones y botón */}
 
           <button
             onClick={handleUpload}
-            disabled={!selectedFile || isUploading}
+            disabled={!selectedFile || isUploading} // Deshabilitado si no hay archivo o está subiendo
           >
             {isUploading ? 'Procesando...' : 'Subir y Analizar'}
           </button>
@@ -193,15 +243,16 @@ function FileUpload() {
         </p>
       )}
 
-       {/* Mostrar sección de descarga si la URL está disponible */}
-      {downloadUrl && (
-          <div className="download-section">
-              <p>Descarga tu archivo de análisis:</p>
+        {/* Mostrar sección de descarga si la URL está disponible */}
+        {downloadUrl && (
+            <div className="download-section">
+              <p>Descarga tu archivo de análisis y transcripción:</p> {/* Mensaje actualizado */}
+               {/* Usa el manejador de clic para iniciar la descarga */}
               <button onClick={handleDownloadClick}>
-                  Descargar "{downloadFilename || 'analisis_descargado.pdf'}"
+                  Descargar "{downloadFilename || 'resultados_analisis.zip'}" {/* Nombre de archivo por defecto para ZIP */}
               </button>
-          </div>
-      )}
+            </div>
+        )}
 
     </div>
   );
