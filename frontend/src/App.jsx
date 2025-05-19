@@ -6,7 +6,7 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <h1>Aplicación de Análisis de Archivos</h1> {/* Título de tu app */}
+        <h1>File Analysis Application</h1> {/* Título de tu app */}
       </header>
       <main>
         {/* Usa tu componente FileUpload */}
