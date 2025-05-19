@@ -41,17 +41,31 @@ from reportlab.lib.pagesizes import letter
 API_KEY = "AIzaSyCOgj1wrOhehSxLBfPYi6WUNpyqp7jPv6o"
 MODEL_NAME = "gemini-2.0-flash-lite"
 
+# --- Token Limits (Defined Globally) ---
+# These limits will be applied to the API calls
+fixed_max_tokens_analysis = 50
+fixed_max_tokens_transcription = 50
+
 # Initialize LangChain Google Generative AI model
-# Ensure the model name is compatible with ChatGoogleGenerativeAI
+# Pass configuration directly during model initialization
 try:
-    llm = ChatGoogleGenerativeAI(model=MODEL_NAME, google_api_key=API_KEY)
-    print("LangChain model initialized successfully.")
+    llm = ChatGoogleGenerativeAI(
+        model=MODEL_NAME,
+        google_api_key=API_KEY,
+        # Pass max_output_tokens here to apply to LangChain calls
+        max_output_tokens=fixed_max_tokens_analysis # Apply the analysis limit
+                                                    # This limit will be used for ALL calls made with this llm instance (Analysis and Transcription)
+                                                    # If transcription needs a different limit, you might need two llm instances
+                                                    # or check LangChain docs for per-call config options if available.
+    )
+    print(f"LangChain model initialized successfully with max_output_tokens={fixed_max_tokens_analysis}.")
 except Exception as e:
     print(f"Error initializing LangChain model: {e}", file=sys.stderr)
 
 # Keep the google.genai client for direct calls if needed, especially for multi-modal outside LangChain invoke
 try:
     client = Client(api_key=API_KEY)
+    print("Original Gemini client initialized successfully.")
 except Exception as e:
     print(f"Error initializing original Gemini client: {e}", file=sys.stderr)
 
@@ -161,6 +175,8 @@ def process_zip_files_sync(zip_data: bytes, max_tokens_analysis: int, max_tokens
     supported files with Gemini API (using LangChain or direct calls),
     and collects results.
     Returns two lists: analysis_results and transcription_results.
+    Note: Token limits are primarily set during llm initialization for LangChain calls.
+        For direct calls (PDF), config is passed explicitly.
     """
     print("--> Entered process_zip_files_sync function")
 
@@ -269,8 +285,8 @@ def process_zip_files_sync(zip_data: bytes, max_tokens_analysis: int, max_tokens
                             if current_file_text is not None: # Use LangChain for text files
                                 print(f"    Using LangChain for Analysis of text file: {file_name} (sync)")
                                 try:
-                                    # Ensure llm is initialized
-                                    if 'llm' not in locals() and 'llm' not in globals():
+                                    # Ensure llm is initialized globally
+                                    if 'llm' not in globals():
                                         raise Exception("LangChain model not initialized for analysis")
                                     analysis_chain = analysis_prompt_template | llm
                                     summary_response_lc = analysis_chain.invoke({'file_content': current_file_text})
@@ -295,8 +311,8 @@ def process_zip_files_sync(zip_data: bytes, max_tokens_analysis: int, max_tokens
 
                             elif current_file_data is not None and file_extension == '.pdf': # Use Direct Client for PDF files
                                 print(f"    Using Direct Client for Analysis of PDF file: {file_name} (sync)")
-                                # Ensure client is initialized
-                                if 'client' not in locals() and 'client' not in globals():
+                                # Ensure client is initialized globally
+                                if 'client' not in globals():
                                     raise Exception("Gemini client not initialized for direct PDF call")
                                 try:
                                     pdf_analysis_parts = [types.Part.from_text(text=analysis_prompt_template.format(file_content=""))]
@@ -305,7 +321,7 @@ def process_zip_files_sync(zip_data: bytes, max_tokens_analysis: int, max_tokens
                                     summary_response = client.models.generate_content(
                                         model=MODEL_NAME,
                                         contents=pdf_analysis_parts,
-                                        # Keep config here if it works - check logs for TypeError with config
+                                        # Pass config explicitly for direct call
                                         config=types.GenerateContentConfig(max_output_tokens=max_tokens_analysis)
                                     )
                                     analysis_status, analysis_text = handle_gemini_response_direct(summary_response, "Analysis", file_name)
@@ -340,9 +356,10 @@ def process_zip_files_sync(zip_data: bytes, max_tokens_analysis: int, max_tokens
                                 print(f"    Sending '{transcription_task_desc}' of '{file_name}' to Gemini API via LangChain ({MODEL_NAME})... (NO AWAIT in sync thread)")
 
                                 try:
-                                    # Ensure llm is initialized
-                                    if 'llm' not in locals() and 'llm' not in globals():
+                                    # Ensure llm is initialized globally
+                                    if 'llm' not in globals():
                                         raise Exception("LangChain model not initialized for transcription")
+                                    # LangChain llm instance uses max_output_tokens set during initialization (analysis limit)
                                     transcription_chain = transcription_prompt_template | llm
                                     transcription_response_lc = transcription_chain.invoke({'file_content': current_file_text, 'target_language': target_language})
 
@@ -414,7 +431,7 @@ def process_zip_files_sync(zip_data: bytes, max_tokens_analysis: int, max_tokens
                         elif is_code_file and not request_transcription_for_cobol:
                             existing_entry = next((item for item in transcription_results if item['filename'] == file_name), None)
                             if not existing_entry:
-                                transcription_results.append({'filename': file_name, 'status': "Omitida: Not requested (sync)", 'text': f"Transcription for '{file_name}' was omitted because no target language was selected (and an early error occurred)."})
+                                transcription_results.append({'filename': file_name, 'status': "Omitted: Not requested (sync)", 'text': f"Transcription for '{file_name}' was omitted because no target language was selected (and an early error occurred)."})
 
 
                 else:
@@ -426,13 +443,13 @@ def process_zip_files_sync(zip_data: bytes, max_tokens_analysis: int, max_tokens
         print(error_msg, file=sys.stderr)
         raise Exception(error_msg)
     except Exception as e:
-        error_msg = f"An general error occurred while processing the ZIP file: {e} (sync)"
+        error_msg = f"A general error occurred while processing the ZIP file: {e} (sync)"
         print(error_msg, file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
         raise Exception(error_msg)
 
 
-    print("Processing files completed in synchronous thread. Retorting results.") # Typo: Retorting -> Returning
+    print("Processing files completed in synchronous thread. Returning results.")
     return analysis_results, transcription_results, processed_file_count
 
 
@@ -458,12 +475,11 @@ async def upload_archive_endpoint(
         raise HTTPException(status_code=500, detail=f"Error reading the content of the ZIP file: {e}")
 
     try:
-        fixed_max_tokens_analysis = 50
-        fixed_max_tokens_transcription = 50
-        print("--> Starting process_zip_files_sync in separate thread")
+        # Pass token limits to the synchronous processing function
         analysis_results, transcription_results, processed_file_count = await anyio.to_thread.run_sync(
             process_zip_files_sync,
             zip_data,
+            # Pass the global limits
             fixed_max_tokens_analysis,
             fixed_max_tokens_transcription,
             target_language
