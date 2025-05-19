@@ -10,39 +10,66 @@ import codecs
 import traceback
 import re
 
-import anyio # Used by FastAPI for run_sync
+import anyio
+
+# LangChain imports
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser # Optional, for easier string output
 
 
+# --- Initialize FastAPI App ---
+# ENSURE this line is executed BEFORE any @app.post, @app.get, etc.
+app = FastAPI()
+
+# --- CORS middleware ---
 from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-
+# --- ReportLab imports ---
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Preformatted
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import letter
 
-
+# --- Gemini API Configuration ---
 API_KEY = "AIzaSyCOgj1wrOhehSxLBfPYi6WUNpyqp7jPv6o"
+MODEL_NAME = "gemini-2.0-flash-lite"
 
+# Initialize LangChain Google Generative AI model
+# Ensure the model name is compatible with ChatGoogleGenerativeAI
+try:
+    llm = ChatGoogleGenerativeAI(model=MODEL_NAME, google_api_key=API_KEY)
+    print("LangChain model initialized successfully.")
+except Exception as e:
+    print(f"Error initializing LangChain model: {e}", file=sys.stderr)
 
+# Keep the google.genai client for direct calls if needed, especially for multi-modal outside LangChain invoke
 try:
     client = Client(api_key=API_KEY)
 except Exception as e:
-    print(f"Error initializing Gemini client: {e}", file=sys.stderr)
+    print(f"Error initializing original Gemini client: {e}", file=sys.stderr)
 
 
-MODEL_NAME = "gemini-2.0-flash-lite"
-
-# Base prompt for document analysis (PDF, TXT)
-DOCUMENT_ANALYSIS_PROMPT = """
+# Define LangChain Prompt Templates
+document_analysis_template = """
 Act as an expert content analyst and a detailed explainer. Your task is to carefully examine the content of a file I will provide you, analyze
 what is happening in it (its logic, functionality, flow, etc.), and then explain it to me in a clear and understandable way.
 I want the explanation to be divided into a step-by-step sequence. For each step, provide a detailed description of what happens, why it happens,
 and any relevant details that will help me understand it thoroughly. The goal is for me to be able to understand each point individually and the
 overall process of the file.
-"""
 
-# Base prompt for code analysis (CBL, COB) - Analysis only, no migration here
-CODE_ANALYSIS_PROMPT = """
+File content:
+{file_content}
+"""
+DOCUMENT_ANALYSIS_PROMPT_TEMPLATE = PromptTemplate.from_template(document_analysis_template)
+
+code_analysis_template = """
 Act as an Expert Code Analyzer and a Detailed Programming Logic Explicador.
 Your primary goal is to thoroughly analyze the code I will provide you. I need you to explain to me its general functionality, its underlying
 programming logic, and how each aspect of the code (variables, functions, control structures, etc.) contributes to the final result.
@@ -54,41 +81,37 @@ Detail how that particular aspect or those lines of code work in this step.
 Explain why that step is necessary in the context of the overall program flow.
 Ensure that each point is explained with enough detail so that someone studying the code can understand it completely.
 Use clear and precise language.
-"""
 
-# Template for code transcription prompt (CBL, COB to target language)
-# This prompt ONLY asks for the migrated code, no additional analysis.
-CODE_TRANSCRIPTION_PROMPT_TEMPLATE = """
+Code:
+{file_content}
+"""
+CODE_ANALYSIS_PROMPT_TEMPLATE = PromptTemplate.from_template(code_analysis_template)
+
+code_transcription_template = """
 Migrate the provided COBOL code to {target_language}.
 Provide only the migrated code in the target language, without any additional explanations or formatting markdown like ```.
+
+COBOL Code:
+{file_content}
 """
+CODE_TRANSCRIPTION_PROMPT_TEMPLATE = PromptTemplate.from_template(code_transcription_template)
+
+# parser = StrOutputParser()
 
 
-app = FastAPI()
-
-# CORS configuration
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-# Helper function to handle API response
-def handle_gemini_response(response, task_type, file_name):
-    """Processes the Gemini API response for a specific task and file."""
+# Helper function to handle API response (Simplified for LangChain, keep for direct calls)
+def handle_gemini_response_direct(response, task_type, file_name):
+    """Processes the DIRECT Gemini API response for a specific task and file."""
     task_description = f"{task_type} for File: {file_name}"
 
-    response_text = f"Could not get text content for {task_description}."
-    status = f"Error: {task_type} - API/Handling Failed"
+    response_text = f"Could not get text content for {task_description} (Direct Call)."
+    status = f"Error: {task_type} - Direct API/Handling Failed"
 
     if response is not None:
         if response.text:
             response_text = response.text
-            status = f"OK {task_type} for {file_name}"
-            print(f"    API Response OK for '{task_description}'.")
+            status = f"OK {task_type} for {file_name} (Direct Call)"
+            print(f"    Direct API Response OK for '{task_description}'.")
         elif response.candidates:
             candidate_texts = []
             for candidate in response.candidates:
@@ -98,46 +121,45 @@ def handle_gemini_response(response, task_type, file_name):
                             candidate_texts.append(part.text)
             if candidate_texts:
                 response_text = " ".join(candidate_texts)
-                status = f"OK (candidates) {task_type} for {file_name}"
-                print(f"    API Response OK (candidates) for '{task_description}'.")
+                status = f"OK (candidates) {task_type} for {file_name} (Direct Call)"
+                print(f"    Direct API Response OK (candidates) for '{task_description}'.")
             else:
-                status = f"Error: {task_type} - Candidates without text for {file_name}"
-                response_text = f"Gemini returned candidates but no text content for {task_description}."
+                status = f"Error: {task_type} - Candidates without text for {file_name} (Direct Call)"
+                response_text = f"Gemini returned candidates but no text content for {task_description} (Direct Call)."
                 print(status, file=sys.stderr)
-                print("    Full response (candidates without text):", response, file=sys.stderr)
+                print("    Full direct response (candidates without text):", response, file=sys.stderr)
 
         elif response.prompt_feedback:
             block_reason = response.prompt_feedback.block_reason
             safety_ratings = response.prompt_feedback.safety_ratings
-            response_text = f"Prompt or response for {task_description} was blocked for safety. Reason: {block_reason}"
+            response_text = f"Prompt or response for {task_description} was blocked by safety (Direct Call). Reason: {block_reason}"
             if safety_ratings:
                 response_text += " | Ratings: " + ", ".join([f"{r.category}: {r.probability}" for r in safety_ratings])
-            status = f"Blocked: {task_type} for {file_name}"
+            status = f"Blocked: {task_type} for {file_name} (Direct Call)"
             print(status, file=sys.stderr)
-            print("    Full prompt feedback:", response.prompt_feedback, file=sys.stderr)
+            print("    Full prompt feedback (Direct Call):", response.prompt_feedback, file=sys.stderr)
 
         else:
-            response_text = f"API returned unexpected response for {task_description}."
-            status = f"Error: {task_type} - Unexpected Response for {file_name}"
+            response_text = f"Direct API returned unexpected response for {task_description}."
+            status = f"Error: {task_type} - Unexpected Direct Response for {file_name}"
             print(status, file=sys.stderr)
-            print("    Unexpected API response:", response, file=sys.stderr)
+            print("    Unexpected direct API response:", response, file=sys.stderr)
 
     else:
-        response_text = f"API call did not return a response object (null response) for {task_description}."
-        status = f"Error: {task_type} - Null Call for {file_name}"
+        response_text = f"Direct API call did not return a response object (null response) for {task_description}."
+        status = f"Error: {task_type} - Null Direct Call for {file_name}"
         print(status, file=sys.stderr)
-        print("    Null API call.", file=sys.stderr)
+        print("    Null direct API call.", file=sys.stderr)
 
     return status, response_text
 
 
 # Synchronous ZIP Processing Logic (will run in a separate thread)
-# This function DOES NOT use 'await'. API calls within it will be handled
-# synchronously in the thread provided by anyio.to_thread.run_sync.
 def process_zip_files_sync(zip_data: bytes, max_tokens_analysis: int, max_tokens_transcription: int, target_language: str = None):
     """
     Processes binary ZIP data synchronously, analyzes/transcribes
-    supported files with Gemini API, and collects results.
+    supported files with Gemini API (using LangChain or direct calls),
+    and collects results.
     Returns two lists: analysis_results and transcription_results.
     """
     print("--> Entered process_zip_files_sync function")
@@ -146,12 +168,10 @@ def process_zip_files_sync(zip_data: bytes, max_tokens_analysis: int, max_tokens
     transcription_results = []
     processed_file_count = 0
 
-    # Define processable extensions (PDF, TXT, CBL, COB) within the synchronous function
     document_extensions = ('.pdf', '.txt')
     code_extensions = ('.cbl', '.cob')
     processable_extensions = document_extensions + code_extensions
 
-    # Validate target language if provided
     valid_target_languages = ['Java', 'CSharp', 'Python', 'JavaScript', 'C++', 'Ruby', 'PHP', 'Go', 'Swift', 'Kotlin']
     request_transcription_for_cobol = False
 
@@ -165,7 +185,7 @@ def process_zip_files_sync(zip_data: bytes, max_tokens_analysis: int, max_tokens
         print("  No target language selected for COBOL transcription. (in sync thread)")
 
 
-    try: # Main Try/Except for general errors when opening/reading ZIP
+    try:
         with zipfile.ZipFile(io.BytesIO(zip_data), 'r') as zip_archive:
             print("--> Zip file opened successfully in sync thread")
             print("Processing files within the ZIP (Synchronous Thread)...")
@@ -188,13 +208,14 @@ def process_zip_files_sync(zip_data: bytes, max_tokens_analysis: int, max_tokens
                     mime_type = None
                     is_code_file = file_extension in code_extensions
 
-                    analysis_status = "Error: Initial processing failed (sync)"
+                    analysis_status = f"Error: Processing initial failed for {file_name} (sync)"
                     analysis_text = f"Could not process file for analysis: {file_name}"
-                    transcription_status = "Omitted: Not applicable" if not is_code_file else "Omitted: Not requested or Prep failed (sync)"
+                    transcription_status = "Omitted: Not applicable" if not is_code_file else f"Omitted: Not requested or Prep failed for {file_name} (sync)"
                     transcribed_code = "Transcription not applicable for this file type." if not is_code_file else f"Transcription not performed due to read/prep error for {file_name} (sync)."
+                    transcribed_result_text = transcribed_code
 
 
-                    try: # Try/Except for read/decode errors within the sync thread
+                    try:
                         if file_extension == '.pdf':
                             print(f"  Processing PDF file: {file_name} (sync)")
                             current_file_data = zip_archive.read(file_info)
@@ -220,23 +241,18 @@ def process_zip_files_sync(zip_data: bytes, max_tokens_analysis: int, max_tokens
                             mime_type = 'text/plain'
 
 
-                        # Determine BASE Prompts and prepare Content Parts for API (sync)
-                        analysis_prompt_base = None
-                        transcription_prompt_base = None
-                        api_content_parts_summary = []
-                        api_content_parts_transcription = []
+                        analysis_prompt_template = None
+                        transcription_prompt_template = None
 
                         if file_extension in document_extensions:
-                            analysis_prompt_base = DOCUMENT_ANALYSIS_PROMPT
+                            analysis_prompt_template = DOCUMENT_ANALYSIS_PROMPT_TEMPLATE
                         elif file_extension in code_extensions:
-                            analysis_prompt_base = CODE_ANALYSIS_PROMPT
+                            analysis_prompt_template = CODE_ANALYSIS_PROMPT_TEMPLATE
                             if request_transcription_for_cobol and target_language:
-                                transcription_prompt_base = CODE_TRANSCRIPTION_PROMPT_TEMPLATE
+                                transcription_prompt_template = CODE_TRANSCRIPTION_PROMPT_TEMPLATE
 
 
-                        if analysis_prompt_base:
-                            api_content_parts_summary.append(types.Part.from_text(text=analysis_prompt_base))
-                        else:
+                        if not analysis_prompt_template:
                             analysis_status = "Error: Analysis base prompt not determined (sync)"
                             analysis_text = "Analysis base prompt could not be determined for this file type. (sync)"
                             analysis_results.append({'filename': file_name, 'status': analysis_status, 'text': analysis_text})
@@ -245,58 +261,68 @@ def process_zip_files_sync(zip_data: bytes, max_tokens_analysis: int, max_tokens
                             continue
 
 
-                        file_content_part = None
-                        if current_file_data is not None:
-                            file_content_part = types.Part.from_bytes(data=current_file_data, mime_type=mime_type)
-                        elif current_file_text is not None and current_file_text:
-                            file_content_part = types.Part.from_text(text=current_file_text)
-                        else:
-                            analysis_status = "Error: API content not prepared (sync)"
-                            analysis_text = "File content could not be prepared for the API call. (sync)"
-                            analysis_results.append({'filename': file_name, 'status': analysis_status, 'text': analysis_text})
-                            if is_code_file and request_transcription_for_cobol:
-                                transcription_results.append({'filename': file_name, 'status': "Omitted: Content prep error (sync)", 'text': f"Transcription for '{file_name}' omitted because content could not be prepared for the API. (sync)"})
-                            continue
-
-                        api_content_parts_summary.append(file_content_part)
-
-                        if is_code_file and request_transcription_for_cobol and transcription_prompt_base and file_content_part:
-                            if target_language:
-                                transcription_prompt_text = transcription_prompt_base.format(target_language=target_language)
-                                api_content_parts_transcription.append(types.Part.from_text(text=transcription_prompt_text))
-                                api_content_parts_transcription.append(file_content_part)
-                            else:
-                                transcription_status = "Omitted: Null target language (sync)"
-                                transcribed_code = "Transcription requested but target language is null. (sync)"
-                                transcription_results.append({'filename': file_name, 'status': transcription_status, 'text': transcribed_code})
-
-
-                        # Generation configuration (synchronous)
-                        # Keep config objects - if TypeError with config persists, remove them below
-                        generation_config_object_analysis = types.GenerateContentConfig(max_output_tokens=max_tokens_analysis)
-                        generation_config_object_transcription = types.GenerateContentConfig(max_output_tokens=max_tokens_transcription)
-
-
-                        # Perform API calls (synchronous in this thread)
-                        try: # Try/Except for API calls and handling
+                        try:
                             print(f"    --> Attempting API call for Analysis/Summary for {file_name} (sync)")
 
-                            # >>> API CALL for ANALYSIS/SUMMARY (NO AWAIT) <<<
-                            if api_content_parts_summary:
-                                analysis_task_desc = f"Document Analysis for File: {file_name}" if file_extension in document_extensions else f"Code Analysis for File: {file_name}"
-                                print(f"    Sending '{analysis_task_desc}' of '{file_name}' to Gemini API ({MODEL_NAME})... (NO AWAIT in sync thread)")
+                            summary_response = None
 
-                                summary_response = client.models.generate_content( # !!! NOTE: NO 'await' here !!!
-                                    model=MODEL_NAME,
-                                    contents=api_content_parts_summary,
-                                    config=generation_config_object_analysis # Keep config here to attempt token control
-                                )
-                                analysis_status, analysis_text = handle_gemini_response(summary_response, "Analysis", file_name)
-                                print(f"    Analysis result for '{file_name}': {analysis_status} (sync)")
+                            if current_file_text is not None: # Use LangChain for text files
+                                print(f"    Using LangChain for Analysis of text file: {file_name} (sync)")
+                                try:
+                                    # Ensure llm is initialized
+                                    if 'llm' not in locals() and 'llm' not in globals():
+                                        raise Exception("LangChain model not initialized for analysis")
+                                    analysis_chain = analysis_prompt_template | llm
+                                    summary_response_lc = analysis_chain.invoke({'file_content': current_file_text})
+
+                                    if hasattr(summary_response_lc, 'content') and summary_response_lc.content:
+                                        analysis_status = f"OK Analysis for {file_name} (LangChain Sync)"
+                                        analysis_text = summary_response_lc.content
+                                        print(f"    Analysis result for '{file_name}': {analysis_status}")
+                                    else:
+                                        analysis_status = f"Error: LangChain response empty/no content for {file_name}"
+                                        analysis_text = f"LangChain invoke returned no content for analysis of {file_name}."
+                                        print(analysis_status, file=sys.stderr)
+                                        print("    LangChain Response object:", summary_response_lc, file=sys.stderr)
+
+                                except Exception as e:
+                                    error_text = f"Exception during LangChain Analysis invoke for {file_name}: {e} (sync)"
+                                    print(f"--- {error_text} ---", file=sys.stderr)
+                                    traceback.print_exc(file=sys.stderr)
+                                    analysis_status = "Exception LangChain Analysis (sync)"
+                                    analysis_text = error_text
+
+
+                            elif current_file_data is not None and file_extension == '.pdf': # Use Direct Client for PDF files
+                                print(f"    Using Direct Client for Analysis of PDF file: {file_name} (sync)")
+                                # Ensure client is initialized
+                                if 'client' not in locals() and 'client' not in globals():
+                                    raise Exception("Gemini client not initialized for direct PDF call")
+                                try:
+                                    pdf_analysis_parts = [types.Part.from_text(text=analysis_prompt_template.format(file_content=""))]
+                                    pdf_analysis_parts.append(types.Part.from_bytes(data=current_file_data, mime_type=mime_type))
+
+                                    summary_response = client.models.generate_content(
+                                        model=MODEL_NAME,
+                                        contents=pdf_analysis_parts,
+                                        # Keep config here if it works - check logs for TypeError with config
+                                        config=types.GenerateContentConfig(max_output_tokens=max_tokens_analysis)
+                                    )
+                                    analysis_status, analysis_text = handle_gemini_response_direct(summary_response, "Analysis", file_name)
+                                    print(f"    Analysis result for '{file_name}': {analysis_status}")
+
+                                except Exception as e:
+                                    error_text = f"Exception during Direct Client Analysis call for {file_name}: {e} (sync)"
+                                    print(f"--- {error_text} ---", file=sys.stderr)
+                                    traceback.print_exc(file=sys.stderr)
+                                    analysis_status = "Exception Direct Analysis (sync)"
+                                    analysis_text = error_text
+
 
                             else:
-                                analysis_status = "Error: Analysis API parts not prepared (sync)"
-                                analysis_text = "Parts for analysis API call could not be prepared. (sync)"
+                                analysis_status = "Error: No processable content found for file (sync)"
+                                analysis_text = f"No text or binary content prepared for {file_name} for API call."
+                                print(analysis_status, file=sys.stderr)
 
 
                             analysis_results.append({
@@ -308,32 +334,48 @@ def process_zip_files_sync(zip_data: bytes, max_tokens_analysis: int, max_tokens
                             print(f"    --> Finished API call for Analysis/Summary for {file_name} (sync)")
 
 
-                            # >>> API CALL for TRANSCRIPTION (if applicable and analysis was OK) <<<
-                            if is_code_file and request_transcription_for_cobol and analysis_status.startswith("OK") and api_content_parts_transcription:
+                            if is_code_file and request_transcription_for_cobol and analysis_status.startswith("OK") and transcription_prompt_template and current_file_text is not None:
                                 transcription_task_desc = f"Transcription to {target_language} for File: {file_name}"
-                                print(f"    --> Attempting API call for Transcription for {file_name} (sync)")
-                                print(f"    Sending '{transcription_task_desc}' of '{file_name}' to Gemini API ({MODEL_NAME})... (NO AWAIT in sync thread)")
+                                print(f"    --> Attempting LangChain call for Transcription for {file_name} (sync)")
+                                print(f"    Sending '{transcription_task_desc}' of '{file_name}' to Gemini API via LangChain ({MODEL_NAME})... (NO AWAIT in sync thread)")
 
-                                transcription_response = client.models.generate_content( # !!! NOTE: NO 'await' here !!!
-                                    model=MODEL_NAME,
-                                    contents=api_content_parts_transcription,
-                                    config=generation_config_object_transcription # Keep config here to attempt token control
-                                )
-                                transcription_status, transcribed_code = handle_gemini_response(transcription_response, "Transcription", file_name)
+                                try:
+                                    # Ensure llm is initialized
+                                    if 'llm' not in locals() and 'llm' not in globals():
+                                        raise Exception("LangChain model not initialized for transcription")
+                                    transcription_chain = transcription_prompt_template | llm
+                                    transcription_response_lc = transcription_chain.invoke({'file_content': current_file_text, 'target_language': target_language})
 
-                                if transcription_status.startswith("OK"):
-                                    match = re.search(r'```(?:[a-zA-Z0-9_+#-]+)?\n(.*?)\n```', transcribed_code, re.DOTALL)
-                                    transcribed_text = match.group(1).strip() if match else transcribed_code.strip()
-                                else:
-                                    transcribed_text = transcribed_code
+                                    if hasattr(transcription_response_lc, 'content') and transcription_response_lc.content:
+                                        transcription_status = f"OK Transcription for {file_name} (LangChain Sync)"
+                                        transcribed_code = transcription_response_lc.content
+                                        print(f"    Transcription result for '{file_name}': {transcription_status}")
+
+                                        match = re.search(r'```(?:[a-zA-Z0-9_+#-]+)?\n(.*?)\n```', transcribed_code, re.DOTALL)
+                                        transcribed_result_text = match.group(1).strip() if match else transcribed_code.strip()
+
+                                    else:
+                                        transcription_status = f"Error: LangChain response empty/no content for {file_name}"
+                                        transcribed_code = f"LangChain invoke returned no content for transcription of {file_name}."
+                                        transcribed_result_text = transcribed_code
+                                        print(transcription_status, file=sys.stderr)
+                                        print("    LangChain Response object:", transcription_response_lc, file=sys.stderr)
+
+                                except Exception as e:
+                                    error_text = f"Exception during LangChain Transcription invoke for {file_name}: {e} (sync)"
+                                    print(f"--- {error_text} ---", file=sys.stderr)
+                                    traceback.print_exc(file=sys.stderr)
+                                    transcription_status = "Exception LangChain Transcription (sync)"
+                                    transcribed_result_text = error_text
+
 
                                 transcription_results.append({
                                     'filename': file_name,
                                     'status': transcription_status,
-                                    'text': transcribed_text
+                                    'text': transcribed_result_text
                                 })
 
-                                print(f"    --> Finished API call for Transcription for {file_name} (sync)")
+                                print(f"    --> Finished LangChain call for Transcription for {file_name} (sync)")
 
 
                             elif is_code_file and not request_transcription_for_cobol:
@@ -344,33 +386,25 @@ def process_zip_files_sync(zip_data: bytes, max_tokens_analysis: int, max_tokens
                                 })
 
 
-                        except Exception as e: # Catch EXCEPTIONS during API calls or handling (sync)
-                            error_text = f"Exception during API calls or response handling: {e} (sync)"
+                        except Exception as e:
+                            error_text = f"General Exception during API/LangChain calls or their immediate handling: {e} (sync)"
                             print(f"--- {error_text} for '{file_name}' ---", file=sys.stderr)
                             traceback.print_exc(file=sys.stderr)
 
                             analysis_entry = next((item for item in analysis_results if item['filename'] == file_name), None)
                             if analysis_entry and not analysis_entry['status'].startswith("OK"):
-                                analysis_entry['status'] = "Exception API/Handling Analysis (sync)"
+                                analysis_entry['status'] = "General Exception API/LangChain Analysis (sync)"
                                 analysis_entry['text'] = error_text
                             elif not analysis_entry:
-                                analysis_results.append({'filename': file_name, 'status': "Exception API/Handling Analysis (sync)", 'text': error_text})
+                                analysis_results.append({'filename': file_name, 'status': "General Exception API/LangChain Analysis (sync)", 'text': error_text})
 
-
-                            if is_code_file and request_transcription_for_cobol:
+                            if is_code_file:
                                 transcription_entry = next((item for item in transcription_results if item['filename'] == file_name), None)
-                                if transcription_entry and (transcription_entry['status'].startswith('Omitted') or transcription_entry['status'].startswith('Error') or transcription_entry['status'] == "Transcription Status Pending (sync)"):
-                                    transcription_entry['status'] = "Exception API/Handling Transcription (sync)"
-                                    transcription_entry['text'] = error_text
-                                elif not transcription_entry:
-                                    transcription_results.append({'filename': file_name, 'status': "Exception API/Handling Transcription (sync)", 'text': error_text})
-                            elif is_code_file and not request_transcription_for_cobol:
-                                existing_entry = next((item for item in transcription_results if item['filename'] == file_name), None)
-                                if not existing_entry:
-                                    transcription_results.append({'filename': file_name, 'status': "Omitted: Not requested (sync)", 'text': f"Transcription for '{file_name}' was omitted because no target language was selected (and a general exception occurred)."})
+                                if not transcription_entry or (transcription_entry['status'].startswith('Omitted') or transcription_entry['status'].startswith('Error')):
+                                    transcription_results.append({'filename': file_name, 'status': "General Exception API/LangChain Transcription (sync)", 'text': error_text})
 
 
-                    except Exception as e: # Catch unexpected errors during read/decode/prep (sync)
+                    except Exception as e:
                         error_text = f"Unexpected error during early read/prep for this file: {e} (sync)"
                         print(f"--- {error_text} for '{file_name}' ---", file=sys.stderr)
                         traceback.print_exc(file=sys.stderr)
@@ -380,7 +414,7 @@ def process_zip_files_sync(zip_data: bytes, max_tokens_analysis: int, max_tokens
                         elif is_code_file and not request_transcription_for_cobol:
                             existing_entry = next((item for item in transcription_results if item['filename'] == file_name), None)
                             if not existing_entry:
-                                transcription_results.append({'filename': file_name, 'status': "Omitted: Not requested (sync)", 'text': f"Transcription for '{file_name}' was omitted because no target language was selected (and an early error occurred)."})
+                                transcription_results.append({'filename': file_name, 'status': "Omitida: Not requested (sync)", 'text': f"Transcription for '{file_name}' was omitted because no target language was selected (and an early error occurred)."})
 
 
                 else:
@@ -398,19 +432,17 @@ def process_zip_files_sync(zip_data: bytes, max_tokens_analysis: int, max_tokens
         raise Exception(error_msg)
 
 
-    print("Processing files completed in synchronous thread. Returning results.")
+    print("Processing files completed in synchronous thread. Retorting results.") # Typo: Retorting -> Returning
     return analysis_results, transcription_results, processed_file_count
 
 
-
-# FastAPI POST route to receive the file
 @app.post("/upload")
 async def upload_archive_endpoint(
     archive_file: UploadFile = File(...),
     target_language: str = Form(None)
 ):
     print("--> Request received in /upload async route")
-    print("POST request received at /upload (FastAPI async)") # Original log kept for structure
+    print("POST request received at /upload (FastAPI async)")
 
     print(f"  Uploaded file: {archive_file.filename}")
     print(f"  Target language received from form: {target_language}")
@@ -425,10 +457,9 @@ async def upload_archive_endpoint(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading the content of the ZIP file: {e}")
 
-    # Execute the SYNCHRONOUS processing logic in a separate thread
     try:
-        fixed_max_tokens_analysis = 400
-        fixed_max_tokens_transcription = 800
+        fixed_max_tokens_analysis = 50
+        fixed_max_tokens_transcription = 50
         print("--> Starting process_zip_files_sync in separate thread")
         analysis_results, transcription_results, processed_file_count = await anyio.to_thread.run_sync(
             process_zip_files_sync,
@@ -439,16 +470,15 @@ async def upload_archive_endpoint(
         )
         print(f"--> Finished process_zip_files_sync. Results received: Analysis={len(analysis_results)}, Transcription={len(transcription_results)}.")
 
-    except Exception as e: # Catch exceptions propagated from process_zip_files_sync
+    except Exception as e:
         print(f"--- Exception propagated to async FastAPI route from sync thread: {e} ---", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
-        if "ZIP valid" in str(e) or "ZIP válido" in str(e): # Check for messages from BadZipFile
+        if "ZIP valid" in str(e) or "ZIP válido" in str(e):
             raise HTTPException(status_code=400, detail=str(e))
         else:
             raise HTTPException(status_code=500, detail=f"Error during ZIP file processing in separate thread: {e}")
 
 
-    # Generate the general ANALYSIS PDF with collected results
     print("--> Starting general Analysis PDF generation...")
     analysis_pdf_buffer = io.BytesIO()
     doc = SimpleDocTemplate(analysis_pdf_buffer, pagesize=letter)
@@ -489,7 +519,6 @@ async def upload_archive_endpoint(
         traceback.print_exc(file=sys.stderr)
 
 
-    # Generate individual TRANSCRIPTION PDFs for code files
     print(f"--> Starting individual Transcription PDF generation for {len(transcription_results)} results...")
     transcription_pdf_files = []
 
@@ -509,7 +538,6 @@ async def upload_archive_endpoint(
             style_error_individual = styles_individual['Normal']
             style_error_individual.textColor = (1, 0, 0)
 
-            # Determine target language for the individual PDF title
             pdf_target_language = target_language if target_language else "N/A"
 
 
@@ -555,7 +583,6 @@ async def upload_archive_endpoint(
     print(f"--> Finished individual Transcription PDF generation. {len(transcription_pdf_files)} PDFs ready to zip.")
 
 
-    # Create the final ZIP file with all PDFs
     print("--> Starting final ZIP file creation...")
     final_zip_buffer = io.BytesIO()
     try:
@@ -591,7 +618,6 @@ async def upload_archive_endpoint(
         return JSONResponse(status_code=500, content={"error": f"Error creating the final ZIP file: {e}"})
 
 
-# To run the FastAPI application with uvicorn
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
