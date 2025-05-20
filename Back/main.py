@@ -42,7 +42,21 @@ MODEL_NAME = "gemini-2.0-flash-lite"
 
 # --- Token Limits ---
 fixed_max_tokens_analysis = 100
-fixed_max_tokens_transcription = 100 
+fixed_max_tokens_transcription = 100 # Limit for code transcription. Adjust as needed.
+
+# NEW: Mapping for target language file extensions
+LANGUAGE_EXTENSIONS = {
+    'Java': '.java',
+    'CSharp': '.cs',
+    'Python': '.py',
+    'JavaScript': '.js',
+    'C++': '.cpp',
+    'Ruby': '.rb',
+    'PHP': '.php',
+    'Go': '.go',
+    'Swift': '.swift',
+    'Kotlin': '.kt'
+}
 
 # Initialize LangChain Google Generative AI model for ANALYSIS
 try:
@@ -251,7 +265,7 @@ def process_zip_files_sync(zip_data: bytes, target_language: str = None):
     print("--> Entered process_zip_files_sync function")
 
     analysis_results = []
-    transcription_results = []
+    transcription_results = [] # Will now store text content, not PDF bytes
     application_guide_results = []
     processed_file_count = 0
 
@@ -259,7 +273,7 @@ def process_zip_files_sync(zip_data: bytes, target_language: str = None):
     cobol_extensions = ('.cbl', '.cob')
     processable_extensions = document_extensions + cobol_extensions
 
-    valid_target_languages = ['Java', 'CSharp', 'Python', 'JavaScript', 'C++', 'Ruby', 'PHP', 'Go', 'Swift', 'Kotlin']
+    valid_target_languages = list(LANGUAGE_EXTENSIONS.keys()) # Use keys from LANGUAGE_EXTENSIONS
     request_transcription_for_cobol = False
 
     if target_language and target_language in valid_target_languages:
@@ -453,6 +467,9 @@ def process_zip_files_sync(zip_data: bytes, target_language: str = None):
             if request_transcription_for_cobol and target_language:
                 # llm_transcription is now initialized globally with its own token limit
                 print(f"  LangChain transcription model (llm_transcription) ready for use.")
+                # Get the target extension, default to .txt if not found (shouldn't happen with valid_target_languages)
+                target_ext = LANGUAGE_EXTENSIONS.get(target_language, '.txt')
+
 
                 for cobol_file in cobol_files_content:
                     file_name = cobol_file['filename']
@@ -477,6 +494,7 @@ def process_zip_files_sync(zip_data: bytes, target_language: str = None):
                             print(f"    Transcription result for '{file_name}': {transcription_status}")
 
                             match = re.search(r'```(?:[a-zA-Z0-9_+#-]+)?\n(.*?)\n```', transcribed_code, re.DOTALL)
+                            # If the model wraps the code in markdown, extract it. Otherwise, use as is.
                             transcribed_result_text = match.group(1).strip() if match else transcribed_code.strip()
 
                         else:
@@ -493,14 +511,16 @@ def process_zip_files_sync(zip_data: bytes, target_language: str = None):
                         transcription_status = "Exception LangChain Transcription (sync)"
                         transcribed_result_text = error_text
 
+                    # Store the transcription text content, not PDF bytes
                     transcription_results.append({
                         'filename': file_name,
                         'status': transcription_status,
-                        'text': transcribed_result_text
+                        'text': transcribed_result_text,
+                        'target_extension': target_ext # Store the determined extension
                     })
                     print(f"    --> Finished LangChain call for Transcription for {file_name} (sync)")
 
-                    # NEW: Generate Application Guide for this Transcribed File
+                    # Generate Application Guide for this Transcribed File (this remains a PDF)
                     if transcription_status.startswith("OK"):
                         print(f"\n    --> Generating Application Guide for transcribed code from {file_name} to {target_language} (sync)")
                         app_guide_status = "Error: Application Guide generation failed (sync)"
@@ -604,7 +624,7 @@ async def upload_archive_endpoint(
     except Exception as e:
         print(f"--- Exception propagated to FastAPI route from synchronous thread: {e} ---", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
-        if "valid ZIP" in str(e): # Checking for "ZIP válido" (Spanish) or "valid ZIP" (English)
+        if "valid ZIP" in str(e):
             raise HTTPException(status_code=400, detail=str(e))
         else:
             raise HTTPException(status_code=500, detail=f"Error during ZIP file processing in a separate thread: {e}")
@@ -650,70 +670,10 @@ async def upload_archive_endpoint(
         traceback.print_exc(file=sys.stderr)
 
 
-    print(f"--> Starting individual Transcription PDF generation for {len(transcription_results)} results...")
-    transcription_pdf_files = []
-
-    if transcription_results:
-        for result in transcription_results:
-            transcription_individual_buffer = io.BytesIO()
-            doc_individual = SimpleDocTemplate(transcription_individual_buffer, pagesize=letter)
-            story_individual = []
-
-            styles_individual = getSampleStyleSheet()
-            style_title_individual = styles_individual['h3']
-            style_body_individual = styles_individual['Normal']
-            style_code_individual = styles_individual['Normal']
-            style_code_individual.fontName = 'Courier'
-            style_code_individual.fontSize = 9
-            style_code_individual.leading = 10
-            style_error_individual = styles_individual['Normal']
-            style_error_individual.textColor = (1, 0, 0)
-
-            pdf_target_language = target_language if target_language else "N/A"
+    # REMOVED: Individual Transcription PDF generation. We will now add code files directly.
+    # The 'transcription_results' list now holds the text content, not PDF bytes.
 
 
-            story_individual.append(Paragraph(f"Transcription to {pdf_target_language} for: {result['filename']} ({result['status']})", style_title_individual))
-            story_individual.append(Spacer(1, 12))
-
-            text_style_individual = style_body_individual
-            if not result['status'].startswith("OK"):
-                text_style_individual = style_error_individual
-
-            if result['status'].startswith("OK") and result['text']:
-                story_individual.append(Preformatted(str(result['text']), style_code_individual))
-            else:
-                story_individual.append(Paragraph(str(result['text']), text_style_individual))
-
-
-            try:
-                doc_individual.build(story_individual)
-                transcription_pdf_bytes = transcription_individual_buffer.getvalue()
-                transcription_individual_buffer.close()
-
-                transcription_pdf_filename = f"transcription_{result['filename'].replace('.', '_')}_to_{pdf_target_language}.pdf"
-                if result['status'].startswith("Omitted"):
-                    transcription_pdf_filename = f"transcription_{result['filename'].replace('.', '_')}_{result['status'].replace(' ', '_').replace(':', '')}.pdf"
-
-                transcription_pdf_files.append({
-                    'filename': transcription_pdf_filename,
-                    'bytes': transcription_pdf_bytes
-                })
-                print(f"--> Transcription PDF for '{result['filename']}' generated successfully and added to the list.")
-            except Exception as e:
-                print(f"--- Error generating Transcription PDF for '{result['filename']}': {e} ---", file=sys.stderr)
-                traceback.print_exc(file=sys.stderr)
-                existing_error_entry = next((item for item in analysis_results if item['filename'] == result['filename'] and 'Transcription' in item.get('status', '')), None)
-                if not existing_error_entry:
-                    analysis_results.append({
-                        'filename': result['filename'],
-                        'status': f"Error generating Transcription PDF for {result['filename']}",
-                        'text': f"An error occurred while generating the transcription PDF file: {e}"
-                    })
-
-
-    print(f"--> Finished individual Transcription PDF generation. {len(transcription_pdf_files)} PDFs ready for ZIP.")
-
-    # NEW: Generate a SINGLE Application Guide PDF
     print(f"--> Starting the generation of the SINGLE Application Guide PDF...")
     application_guide_master_pdf_bytes = None
 
@@ -731,7 +691,7 @@ async def upload_archive_endpoint(
 
         story_master_guide.append(Paragraph(f"Application Guide for Code Migrated to {target_language if target_language else 'N/A'}", style_title_master_guide))
         story_master_guide.append(Spacer(1, 0.2*letter[1]))
-        story_master_guide.append(Paragraph("This document contains step-by-step guides for integrating and applying the migrated COBOL code.", style_body_master_guide))
+        story_master_guide.append(Paragraph("This document contains step-by-step guides for integrating and applying the newly migrated code.", style_body_master_guide))
         story_master_guide.append(Spacer(1, 18))
 
 
@@ -778,14 +738,26 @@ async def upload_archive_endpoint(
             else:
                 print("  Error: General analysis PDF not generated or is null, not adding to ZIP.", file=sys.stderr)
 
-            if transcription_pdf_files:
-                for pdf_file in transcription_pdf_files:
-                    final_zip.writestr(pdf_file['filename'], pdf_file['bytes'])
-                    print(f"  Added '{pdf_file['filename']}' to the ZIP.")
+            # NEW: Add transcribed code files to the ZIP
+            if transcription_results:
+                for result in transcription_results:
+                    if result['status'].startswith("OK") and result['text']:
+                        # Create a filename with the original base name and the new extension
+                        original_base_name = result['filename'].rsplit('.', 1)[0] # Get name without original extension
+                        target_extension = result.get('target_extension', '.txt') # Get the stored target extension
+                        transcribed_code_filename = f"{original_base_name}{target_extension}"
+                        final_zip.writestr(transcribed_code_filename, result['text'].encode('utf-8'))
+                        print(f"  Added transcribed code file '{transcribed_code_filename}' to the ZIP.")
+                    else:
+                        # For errors/omissions, you might still want a .txt file explaining why
+                        original_base_name = result['filename'].rsplit('.', 1)[0]
+                        error_filename = f"{original_base_name}_transcription_error.txt"
+                        final_zip.writestr(error_filename, result['text'].encode('utf-8'))
+                        print(f"  Added error file '{error_filename}' for transcription error.")
             else:
-                print("  No transcription PDFs to add to the ZIP.", file=sys.stderr)
+                print("  No transcription results to add to the ZIP.", file=sys.stderr)
 
-            # NEW: Add the SINGLE application guide PDF to the final ZIP
+            # Keep the SINGLE application guide PDF
             if application_guide_master_pdf_bytes is not None:
                 master_guide_pdf_filename = f"application_guide_all_migrated_code_to_{target_language if target_language else 'N_A'}.pdf"
                 final_zip.writestr(master_guide_pdf_filename, application_guide_master_pdf_bytes)

@@ -1,151 +1,210 @@
 /* src/FileUpload.css */
 
-/* Estilo para el contenedor principal del componente */
+/* Base styles for a clean, modern look */
+body {
+    font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+    background-color: #eef2f6; /* Un fondo global muy suave */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    color: #34495e; /* Color de texto base */
+}
+
+/* Contenedor principal de la aplicación */
 .file-upload-container {
-    font-family: 'Arial', sans-serif;
-    margin: 40px auto; /* Centra el contenedor y añade margen */
-    padding: 30px;
-    background-color: #dddcdc;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    border-radius: 8px;
-    max-width: 600px; /* Ancho máximo para el contenedor */
-    text-align: center; /* Centra el contenido dentro del contenedor */
+    background-color: #ffffff; /* Fondo blanco para el contenedor */
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08); /* Sombra más pronunciada pero suave */
+    border-radius: 16px; /* Bordes más redondeados */
+    padding: 40px; /* Más padding */
+    max-width: 650px; /* Aumenta un poco el ancho */
+    width: 90%; /* Responsivo */
+    text-align: center;
+    border: 1px solid #e0e6ed; /* Borde sutil */
 }
 
-/* Estilo para el título */
+/* Título principal de la aplicación */
 .file-upload-container h2 {
-    color: #0056b3;
-    margin-bottom: 25px;
+    color: #2c3e50; /* Un azul oscuro más sobrio */
+    font-size: 2.2rem; /* Tamaño de fuente más grande */
+    margin-bottom: 2rem; /* Más espacio debajo */
+    font-weight: 600; /* Un poco más de grosor */
 }
 
-/* Estilo para el formulario */
+/* Estilos para el formulario */
 .file-upload-container form {
-    margin-bottom: 30px;
-    padding: 25px;
-    border: 1px solid #124761; /* Borde más sutil */
-    border-radius: 5px;
-    background-color: #257ca7; /* Fondo muy claro */
-    display: inline-block; /* Para que el contenedor se ajuste al contenido si es necesario */
-    text-align: left; /* Alinea el contenido del formulario a la izquierda */
-    width: 100%; /* Ocupa todo el ancho del contenedor padre */
-    box-sizing: border-box; /* Incluye padding y border en el ancho */
-}
-
-/* Estilo para el input de archivo */
-.file-upload-container input[type="file"] {
-    display: block;
-    margin: 0 0 20px 0;
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background-color: #fff;
+    margin-bottom: 2.5rem; /* Más espacio debajo del formulario */
+    padding: 30px; /* Más padding */
+    border: 1px solid #dcdfe4; /* Borde sutil */
+    border-radius: 10px; /* Bordes redondeados */
+    background-color: #f8f9fa; /* Fondo muy claro para el formulario */
+    display: block; /* Asegura que ocupe su propio bloque */
+    text-align: left;
     width: 100%;
     box-sizing: border-box;
-    color: #333; /* <<< Añade esta línea para cambiar el color del texto */
-    /* ... otras propiedades ... */
 }
 
-/* Estilo para el botón */
-.file-upload-container button {
-    background-color: #173457;
+/* Estilo para el input de archivo (oculto y su label personalizado) */
+.hidden-file-input {
+    display: none; /* Oculta el input nativo */
+}
+
+.file-input-label {
+    display: block; /* Hace que ocupe todo el ancho */
+    background-color: #007bff; /* Azul primario */
     color: white;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 5px;
+    padding: 12px 20px;
+    border-radius: 6px;
     cursor: pointer;
     font-size: 1em;
-    transition: background-color 0.3s ease, opacity 0.3s ease; /* Transición suave */
-    display: inline-block; /* Asegura que se comporte como un botón normal */
-    margin-top: 10px; /* Espacio arriba del botón */
+    transition: background-color 0.3s ease;
+    text-align: center;
+    margin-bottom: 15px; /* Espacio debajo */
+    font-weight: 500;
 }
 
-/* Estilo para el botón al pasar el mouse */
+.file-input-label:hover {
+    background-color: #0056b3; /* Azul más oscuro al pasar el mouse */
+}
+
+.selected-file-name {
+    margin-top: 10px;
+    font-size: 0.95em;
+    color: #555;
+    text-align: center;
+}
+
+/* Dropdown para la selección de lenguaje */
+.language-select-container {
+    margin-top: 25px; /* Espacio encima del dropdown */
+    margin-bottom: 25px;
+    display: flex; /* Para alinear label y select */
+    align-items: center;
+    justify-content: center; /* Centra el contenido si hay espacio extra */
+    flex-wrap: wrap; /* Permite que los elementos se envuelvan en pantallas pequeñas */
+}
+
+.language-select-container label {
+    margin-right: 15px; /* Espacio entre label y select */
+    font-weight: 600; /* Texto más negrita */
+    color: #34495e;
+    min-width: 150px; /* Ancho mínimo para el label */
+    text-align: right;
+}
+
+.language-select-container select {
+    flex-grow: 1; /* Permite que el select crezca */
+    max-width: 250px; /* Ancho máximo para el select */
+    padding: 10px 15px;
+    border: 1px solid #000000;
+    border-radius: 6px;
+    font-size: 1em;
+    color: black;
+    background-color: #ffffff;
+    cursor: pointer;
+    appearance: none; /* Elimina estilos nativos del select */
+    background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23007bff%22%20d%3D%22M287%2C197.3L159.2%2C69.6c-3.6-3.6-8.4-5.4-13.6-5.4s-10%2C1.8-13.6%2C5.4L5.4%2C197.3c-7.2%2C7.2-7.2%2C18.8%2C0%2C26.1c7.2%2C7.2%2C18.8%2C7.2%2C26.1%2C0l114.1-114.2l114.1%2C114.2c7.2%2C7.2%2C18.8%2C7.2%2C26.1%2C0C294.2%2C216.1%2C294.2%2C204.5%2C287%2C197.3z%22%2F%3E%3C%2Fsvg%3E'); /* Flecha personalizada */
+    background-repeat: no-repeat;
+    background-position: right 10px top 50%;
+    background-size: 12px auto;
+}
+
+.language-select-container select:disabled {
+    background-color: #eceff1; /* Fondo más claro para deshabilitado */
+    cursor: not-allowed;
+    color: #7f8c8d;
+    border-color: #dbe4ea;
+}
+
+
+/* Botón de Subida y Análisis */
+.file-upload-container button {
+    background-color: #28a745; /* Verde para el botón principal */
+    color: white;
+    padding: 12px 25px;
+    border: none;
+    border-radius: 8px; /* Bordes un poco más redondeados */
+    cursor: pointer;
+    font-size: 1.1em; /* Texto un poco más grande */
+    font-weight: 600;
+    transition: background-color 0.3s ease, transform 0.2s ease; /* Añadir transformación */
+    display: inline-block;
+    margin-top: 15px; /* Más espacio arriba */
+}
+
 .file-upload-container button:hover:not(:disabled) {
-    background-color: #0056b3;
+    background-color: #218838; /* Verde más oscuro al pasar el mouse */
+    transform: translateY(-2px); /* Efecto de elevación */
 }
 
-/* Estilo para el botón deshabilitado */
 .file-upload-container button:disabled {
-    background-color: #cccccc; /* Gris deshabilitado */
-    cursor: not-allowed; /* Cursor de no permitido */
-    opacity: 0.7; /* Un poco transparente */
+    background-color: #aeb6bf; /* Gris deshabilitado más neutro */
+    cursor: not-allowed;
+    opacity: 0.8;
 }
 
-/* Estilos para los mensajes */
+/* Mensajes de estado */
 .file-upload-container .message {
-    margin-top: 15px;
-    padding: 10px;
-    border-radius: 4px;
+    margin-top: 25px; /* Más espacio */
+    padding: 15px; /* Más padding */
+    border-radius: 8px;
     word-break: break-word;
-    text-align: left; /* Alinea los mensajes a la izquierda */
-    border: 1px solid transparent; /* Borde transparente por defecto */
-    font-size: 0.9em; /* Fuente ligeramente más pequeña */
+    text-align: left;
+    border: 1px solid transparent;
+    font-size: 0.95em;
+    font-weight: 500;
 }
 
-/* Colores para los tipos de mensajes */
 .file-upload-container .message.info {
-    color: #0056b3; /* Un azul para información */
-    background-color: #e9f4ff; /* Fondo azul claro */
-    border-color: #b3d4ff; /* Borde azul */
+    color: #007bff;
+    background-color: #e0f2fe; /* Azul más suave */
+    border-color: #90caf9;
 }
 
 .file-upload-container .message.success {
-    color: #28a745; /* Un verde estándar de éxito */
-    background-color: #d4edda; /* Fondo verde claro */
-    border-color: #136024; /* Borde verde */
+    color: #28a745;
+    background-color: #e8f5e9; /* Verde más suave */
+    border-color: #a5d6a7;
 }
 
 .file-upload-container .message.error {
-    color: #dc3545; /* Un rojo estándar de error */
-    background-color: #f8d7da; /* Fondo rojo claro */
-    border-color: #601313; /* Borde rojo */
+    color: #dc3545;
+    background-color: #ffebee; /* Rojo más suave */
+    border-color: #ef9a9a;
 }
 
-/* Estilo para el área de descarga */
+/* Sección de descarga */
 .file-upload-container .download-section {
-    margin-top: 25px;
-    padding: 20px;
-    border: 1px solid #124761;
-    border-radius: 5px;
-    background-color: #257ca7;
-    text-align: center; /* Centra el contenido de descarga */
+    margin-top: 35px; /* Más espacio */
+    padding: 30px; /* Más padding */
+    border: 1px solid #dbe4ea; /* Borde sutil */
+    border-radius: 10px;
+    background-color: #f0f4f7; /* Fondo ligeramente diferente */
+    text-align: center;
 }
 
 .file-upload-container .download-section p {
     margin-top: 0;
-    margin-bottom: 15px;
-    font-weight: bold;
+    margin-bottom: 20px; /* Más espacio */
+    font-weight: 600; /* Negrita */
+    color: #2c3e50;
+    font-size: 1.1em;
 }
 
-/* Estilo para el botón de descarga (similar al de subida pero quizás con otro color) */
+/* Botón de descarga */
 .file-upload-container .download-section button {
-    background-color: #28a745; /* Verde para el botón de descarga */
+    background-color: #007bff; /* Azul para el botón de descarga */
+    color: white;
+    padding: 12px 25px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1.1em;
+    font-weight: 600;
+    transition: background-color 0.3s ease, transform 0.2s ease;
 }
 .file-upload-container .download-section button:hover:not(:disabled) {
-     background-color: #218838; /* Verde más oscuro al pasar el mouse */
-}
-
-/* Nuevos estilos para la selección de lenguaje */
-.language-select-container {
-    margin-bottom: 20px; /* Espacio debajo */
-    text-align: left; /* Alinea a la izquierda dentro del formulario */
-}
-
-.language-select-container label {
-    margin-right: 10px; /* Espacio entre label y select */
-    font-weight: normal;
-}
-
-.language-select-container select {
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 1em;
-    cursor: pointer;
-}
-
-/* Estilo opcional para el select deshabilitado */
-.language-select-container select:disabled {
-    background-color: #eee;
-    cursor: not-allowed;
+    background-color: #0056b3;
+    transform: translateY(-2px);
 }
