@@ -182,9 +182,13 @@ body {
     border-radius: 10px;
     background-color: #f0f4f7; /* Fondo ligeramente diferente */
     text-align: center;
+    display: flex; /* Use flexbox for button layout */
+    justify-content: center; /* Center buttons horizontally */
+    align-items: center; /* Center buttons vertically */
+    gap: 1rem; /* Space between buttons */
 }
 
-.file-upload-container .download-section p {
+.download-section p {
     margin-top: 0;
     margin-bottom: 20px; /* Más espacio */
     font-weight: 600; /* Negrita */
@@ -192,9 +196,9 @@ body {
     font-size: 1.1em;
 }
 
-/* Botón de descarga */
-.file-upload-container .download-section button {
-    background-color: #007bff; /* Azul para el botón de descarga */
+/* Botones de descarga y previsualización */
+.download-section button {
+    background-color: #007bff; /* Azul para los botones */
     color: white;
     padding: 12px 25px;
     border: none;
@@ -204,7 +208,58 @@ body {
     font-weight: 600;
     transition: background-color 0.3s ease, transform 0.2s ease;
 }
-.file-upload-container .download-section button:hover:not(:disabled) {
+.download-section button:hover:not(:disabled) {
     background-color: #0056b3;
     transform: translateY(-2px);
+}
+
+/* Modal de Vista Previa */
+.preview-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5); /* Fondo semi-transparente */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000; /* Asegura que esté encima */
+}
+
+.preview-modal-content {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    width: 80%;
+    max-height: 80%;
+    overflow-y: auto; /* Permite el desplazamiento si el contenido es demasiado largo */
+    position: relative; /* Para el posicionamiento del botón de cierre */
+}
+
+.close-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 1.5em;
+    cursor: pointer;
+    color: #555;
+}
+.close-button:hover {
+    color: #000;
+}
+
+.preview-text {
+    white-space: pre-wrap; /* Conserva el formato y ajusta el texto */
+    font-family: monospace; /* Usa fuente monospace para el código */
+    font-size: 0.9em;
+    color: #333;
+    line-height: 1.4;
+}
+
+.preview-modal img {
+    max-width: 100%;
+    max-height: 70vh;
+    display: block;
+    margin: 0 auto;
 }

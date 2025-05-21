@@ -1,41 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import './FileUpload.css'; // Import the CSS file
+import './FileUpload.css';
+import JSZip from 'jszip';
 
 function FileUpload() {
-    // State variables for file selection and upload process
     const [selectedFile, setSelectedFile] = useState(null);
     const [statusMessage, setStatusMessage] = useState('');
-    const [messageType, setMessageType] = useState(''); // 'info', 'success', 'error'
-
+    const [messageType, setMessageType] = useState('');
     const [isUploading, setIsUploading] = useState(false);
-    // State variables for download link after successful processing
     const [downloadUrl, setDownloadUrl] = useState(null);
     const [downloadFilename, setDownloadFilename] = useState('');
-
-    // State for the selected transcription target language
-    // Initially no language selected (only summary)
     const [targetLanguage, setTargetLanguage] = useState('');
+    const [zipFiles, setZipFiles] = useState([]);
+    const [selectedPreviewFile, setSelectedPreviewFile] = useState(null);
+    const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
-    // Clears previous states when a new file is selected
     const handleFileChange = (event) => {
         setSelectedFile(event.target.files[0]);
         setStatusMessage('');
         setMessageType('');
-        setDownloadUrl(null); // Clear previous download URL
-        setDownloadFilename(''); // Clear previous filename
-        // Keep targetLanguage selection
+        setDownloadUrl(null);
+        setDownloadFilename('');
     };
 
-    // Handles changes in the transcription language selection
     const handleLanguageChange = (event) => {
         setTargetLanguage(event.target.value);
-        // Optional: clear messages or state on option change
-        // setStatusMessage('');
-        // setMessageType('');
     };
 
-
-    // Handles the file upload process
     const handleUpload = async () => {
         if (!selectedFile) {
             setStatusMessage('Please select a ZIP file first.');
@@ -43,95 +33,67 @@ function FileUpload() {
             return;
         }
 
-        setIsUploading(true); // Indicate upload has started
-        setStatusMessage('Uploading file...'); // Initial message
+        setIsUploading(true);
+        setStatusMessage('Uploading file...');
         setMessageType('info');
-        setDownloadUrl(null); // Clear previous download URL
-        setDownloadFilename(''); // Clear previous filename
+        setDownloadUrl(null);
+        setDownloadFilename('');
 
         const formData = new FormData();
         formData.append('archive_file', selectedFile);
-        // Add the selected transcription language to FormData
-        if (targetLanguage) { // Only add if a language is selected (not empty)
+        if (targetLanguage) {
             formData.append('target_language', targetLanguage);
-            console.log("Selected transcription language:", targetLanguage); // Log for verification
-        } else {
-            console.log("No target transcription language selected. Only COBOL files will be summarized.");
         }
-
 
         try {
             setStatusMessage('File uploaded. Processing on the backend...');
             setMessageType('info');
 
-            // Ensure the URL points to your FastAPI server (e.g., port 8000)
             const response = await fetch('http://localhost:8000/upload', {
                 method: 'POST',
                 body: formData,
             });
 
             if (response.ok) {
-                // Handle success response (expecting a ZIP)
-                setStatusMessage('Processing complete. Preparing ZIP download...'); // Updated message
-                setMessageType('info');
-
-                // Get the response body as a Blob (correct for binary data)
                 const fileBlob = await response.blob();
-
-                // Get filename from Content-Disposition header
                 const contentDisposition = response.headers.get('Content-Disposition');
-                // Default filename if header is missing or invalid - use .zip extension
-                let filename = 'analysis_results.zip'; // Default filename for ZIP
+                let filename = 'analysis_results.zip';
                 if (contentDisposition) {
                     const filenameMatch = contentDisposition.match(/filename="(.+)"/);
                     if (filenameMatch && filenameMatch[1]) {
-                        // Use the filename from the header (should be a .zip name)
                         filename = filenameMatch[1];
                     }
                 }
-                console.log("Filename for download:", filename); // Log for verification
 
-
-                // Create object URL
                 const url = window.URL.createObjectURL(fileBlob);
-
-                // Set state for download link
                 setDownloadUrl(url);
-                setDownloadFilename(filename); // Use the extracted or default .zip filename
-                setStatusMessage('Processing complete. Click to download the ZIP file.'); // Updated message
+                setDownloadFilename(filename);
+                setStatusMessage('Processing complete. Click to download the ZIP file.');
                 setMessageType('success');
 
+                await extractZipContents(fileBlob);
+
             } else {
-                // Handle error response (backend returned non-200 status)
                 setStatusMessage(`Error processing file (code: ${response.status} ${response.statusText}).`);
                 setMessageType('error');
-                console.error('Error response from backend:', response);
 
                 try {
-                    // Attempt to read error details as text or JSON from backend
-                    const errorDetailsText = await response.text(); // Read as text first
-
-                    // Try parsing as JSON if backend sends JSON errors
-                    let backendErrorMessage = errorDetailsText.slice(0, 300) + '...'; // Default to text extract
+                    const errorDetailsText = await response.text();
+                    let backendErrorMessage = errorDetailsText.slice(0, 300) + '...';
                     try {
                         const errorJson = JSON.parse(errorDetailsText);
-                        // Check if an 'error' key exists (as in your backend JSONResponse errors)
                         if (errorJson && errorJson.error) {
-                            backendErrorMessage = errorJson.error; // Use the error message from the 'error' key
+                            backendErrorMessage = errorJson.error;
                         } else {
-                            // If JSON parsing successful but no 'error' key (another unexpected JSON structure)
                             backendErrorMessage = 'Backend response was valid JSON but with unexpected structure. Check browser console.';
                             console.error('Backend JSON response:', errorJson);
                         }
                     } catch (jsonParseError) {
-                        // If JSON parsing fails, assume it's plain text or error HTML (as before)
                         console.warn('Backend response was not JSON. Handling as text/HTML.', jsonParseError);
-                        // Text extract is kept as backendErrorMessage
                     }
 
-                    // Update status message with backend details
                     setStatusMessage(prevMsg => `${prevMsg} Backend Details: ${backendErrorMessage}`);
-                    console.error('Backend error details:', errorDetailsText); // Log the original response as text
+                    console.error('Backend error details:', errorDetailsText);
 
                 } catch (readError) {
                     console.error('Error reading error response details:', readError);
@@ -140,56 +102,134 @@ function FileUpload() {
             }
 
         } catch (error) {
-            // Handle network errors or errors before response.ok (like "Failed to fetch")
             console.error('Error during upload or connection:', error);
-            // This catch often captures network errors or if the request couldn't even complete to the point of having a response.status
             setStatusMessage(`Connection or upload error: ${error.message}. Ensure the FastAPI server is running.`);
             setMessageType('error');
         } finally {
-            setIsUploading(false); // Reset uploading state
+            setIsUploading(false);
         }
     };
 
-    // Handles the download button click
     const handleDownloadClick = () => {
         if (downloadUrl) {
             const a = document.createElement('a');
             a.href = downloadUrl;
-            // Use downloadFilename which should already have the .zip extension from backend, or the .zip default
             a.download = downloadFilename || 'analysis_results.zip';
-            a.click(); // Trigger the download
+            a.click();
 
-            // Clean up the object URL after a small delay
             setTimeout(() => {
                 window.URL.revokeObjectURL(downloadUrl);
-                console.log("Revoking download URL.");
             }, 100);
         }
     };
 
-    // Cleanup of the download URL when the component unmounts or the URL changes
     useEffect(() => {
         return () => {
             if (downloadUrl) {
                 window.URL.revokeObjectURL(downloadUrl);
-                console.log("Revoking previous download URL.");
             }
         };
     }, [downloadUrl]);
 
+    const extractZipContents = async (zipBlob) => {
+        try {
+            const zip = await JSZip.loadAsync(zipBlob);
+            const files = [];
+            const loadTextFiles = [];
+
+            zip.forEach((relativePath, zipEntry) => {
+                const file = {
+                    name: zipEntry.name,
+                    content: null,
+                    type: getFileType(zipEntry.name),
+                    zipEntry: zipEntry,
+                };
+                files.push(file);
+
+                if (file.type === 'text') {
+                    loadTextFiles.push(zipEntry.async('string').then(text => {
+                        file.content = text;
+                    }).catch(err => {
+                        console.error(`Error loading text file ${file.name}:`, err);
+                    }));
+                }
+            });
+
+            await Promise.all(loadTextFiles);
+            setZipFiles(files);
+            console.log('zipFiles after extraction:', files);
+        } catch (error) {
+            console.error('Error extracting ZIP contents:', error);
+            setStatusMessage('Error processing ZIP for preview.');
+            setMessageType('error');
+        }
+    };
+
+    const getFileType = (filename) => {
+        const ext = filename.split('.').pop().toLowerCase();
+        if (['txt', 'cbl', 'cob', 'java', 'py', 'cs', 'js', 'html', 'css'].includes(ext)) {
+            return 'text';
+        } else if (ext === 'pdf') {
+            return 'pdf';
+        } else if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) {
+            return 'image';
+        } else {
+            return 'other';
+        }
+    };
+
+    const fetchFileContent = async (file) => {
+        console.log('Fetching content for:', file);
+        if (file.content === null && file.type !== 'text') {
+            try {
+                const content = await file.zipEntry.async(file.type === 'text' ? 'string' : 'blob');
+                setSelectedPreviewFile({ ...file, content });
+                console.log('setSelectedPreviewFile called with (after fetch):', { ...file, content });
+                setIsPreviewModalOpen(true);
+            } catch (error) {
+                console.error(`Error fetching content for ${file.name}:`, error);
+                setStatusMessage(`Error previewing ${file.name}`);
+                setMessageType('error');
+            }
+        } else {
+            setSelectedPreviewFile(file);
+            console.log('setSelectedPreviewFile called with (immediate):', file);
+            setIsPreviewModalOpen(true);
+        }
+    };
+
+    const closePreviewModal = () => {
+        setIsPreviewModalOpen(false);
+        setSelectedPreviewFile(null);
+    };
+
+    const handleDownloadPdf = (file) => {
+        if (file && file.content) {
+            const pdfBlob = new Blob([file.content], { type: 'application/pdf' });
+            const url = window.URL.createObjectURL(pdfBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = file.name;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        } else {
+            setStatusMessage('No PDF content to download.');
+            setMessageType('error');
+        }
+    };
 
     return (
         <div className="file-upload-container">
-            <h2>AI Code Analysis and Migration</h2> {/* Updated title for app-like feel */}
+            <h2>AI Code Analysis and Migration</h2>
             <form onSubmit={(e) => { e.preventDefault(); handleUpload(); }}>
                 <label htmlFor="archiveFile" className="file-input-label">Select ZIP File</label>
                 <input
                     type="file"
                     id="archiveFile"
-                    accept=".zip" // Accept only zip files
+                    accept=".zip"
                     onChange={handleFileChange}
                     disabled={isUploading}
-                    className="hidden-file-input" // Class to hide the native input
+                    className="hidden-file-input"
                 />
                 {selectedFile && <p className="selected-file-name">Selected file: {selectedFile.name}</p>}
 
@@ -231,10 +271,64 @@ function FileUpload() {
 
             {downloadUrl && (
                 <div className="download-section">
-                    <p>Processing complete! Download your results:</p> {/* More generic message */}
+                    <p>Processing complete! Download your results:</p>
                     <button onClick={handleDownloadClick}>
                         Download "{downloadFilename || 'analysis_results.zip'}"
                     </button>
+                    <button onClick={() => setIsPreviewModalOpen(true)}>
+                        Preview ZIP
+                    </button>
+                </div>
+            )}
+
+            {isPreviewModalOpen && zipFiles.length > 0 && (
+                <div className="preview-modal">
+                    <div className="preview-modal-content">
+                        <span className="close-button" onClick={closePreviewModal}>&times;</span>
+                        <h3>Archivos en el ZIP</h3>
+                        <ul>
+                            {zipFiles.map((file, index) => (
+                                <li
+                                    key={index}
+                                    onClick={() => fetchFileContent(file)}
+                                    style={{
+                                        cursor: 'pointer',
+                                        color: selectedPreviewFile?.name === file.name ? 'blue' : 'black',
+                                        fontWeight: selectedPreviewFile?.name === file.name ? 'bold' : 'normal',
+                                    }}
+                                >
+                                    {file.name}
+                                </li>
+                            ))}
+                        </ul>
+                        {selectedPreviewFile && (
+                            <>
+                                <h4>Preview: {selectedPreviewFile.name}</h4>
+                                {selectedPreviewFile.type === 'text' && (
+                                    <pre className="preview-text">{selectedPreviewFile.content}</pre>
+                                )}
+                                {selectedPreviewFile.type === 'pdf' && (
+                                    <p>
+                                        PDF file.
+                                        <button onClick={() => handleDownloadPdf(selectedPreviewFile)}>
+                                            Click here to download and view.
+                                        </button>
+                                    </p>
+                                )}
+                                {selectedPreviewFile.type === 'image' && selectedPreviewFile.content && (
+                                    <img src={URL.createObjectURL(selectedPreviewFile.content)} alt={selectedPreviewFile.name} />
+                                )}
+                                {selectedPreviewFile.type === 'other' && (
+                                    <p>
+                                        Unknown file type.
+                                        <a href={downloadUrl} download={selectedPreviewFile.name}>
+                                            Download to view.
+                                        </a>
+                                    </p>
+                                )}
+                            </>
+                        )}
+                    </div>
                 </div>
             )}
 

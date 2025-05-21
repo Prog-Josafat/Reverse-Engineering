@@ -41,8 +41,8 @@ API_KEY = "AIzaSyCOgj1wrOhehSxLBfPYi6WUNpyqp7jPv6o"
 MODEL_NAME = "gemini-2.0-flash-lite"
 
 # --- Token Limits ---
-fixed_max_tokens_analysis = 100
-fixed_max_tokens_transcription = 100 # Limit for code transcription. Adjust as needed.
+fixed_max_tokens_analysis = 10
+fixed_max_tokens_transcription = 10 # Limit for code transcription. Adjust as needed.
 
 # NEW: Mapping for target language file extensions
 LANGUAGE_EXTENSIONS = {
