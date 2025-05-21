@@ -17,7 +17,7 @@ body {
     background-color: #ffffff; /* Fondo blanco para el contenedor */
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08); /* Sombra más pronunciada pero suave */
     border-radius: 16px; /* Bordes más redondeados */
-    padding: 40px; /* Más padding */
+    padding: 45px; /* Más padding */
     max-width: 650px; /* Aumenta un poco el ancho */
     width: 90%; /* Responsivo */
     text-align: center;
@@ -77,154 +77,143 @@ body {
 
 /* Dropdown para la selección de lenguaje */
 .language-select-container {
-    margin-top: 25px; /* Espacio encima del dropdown */
-    margin-bottom: 25px;
-    display: flex; /* Para alinear label y select */
-    align-items: center;
-    justify-content: center; /* Centra el contenido si hay espacio extra */
-    flex-wrap: wrap; /* Permite que los elementos se envuelvan en pantallas pequeñas */
+    margin-bottom: 20px;
+    text-align: center;
 }
 
 .language-select-container label {
-    margin-right: 15px; /* Espacio entre label y select */
-    font-weight: 600; /* Texto más negrita */
-    color: #34495e;
-    min-width: 150px; /* Ancho mínimo para el label */
-    text-align: right;
+    display: block;
+    margin-bottom: 8px;
+    color: #333;
+    font-weight: 600;
+    font-size: 1.1em;
 }
 
 .language-select-container select {
-    flex-grow: 1; /* Permite que el select crezca */
-    max-width: 250px; /* Ancho máximo para el select */
-    padding: 10px 15px;
-    border: 1px solid #000000;
-    border-radius: 6px;
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
     font-size: 1em;
-    color: black;
-    background-color: #ffffff;
+    color: #444;
+    background-color: white;
+    appearance: none; /* Quita los estilos nativos del sistema */
+    -webkit-appearance: none; /* Para Safari */
+    -moz-appearance: none; /* Para Firefox */
     cursor: pointer;
-    appearance: none; /* Elimina estilos nativos del select */
-    background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23007bff%22%20d%3D%22M287%2C197.3L159.2%2C69.6c-3.6-3.6-8.4-5.4-13.6-5.4s-10%2C1.8-13.6%2C5.4L5.4%2C197.3c-7.2%2C7.2-7.2%2C18.8%2C0%2C26.1c7.2%2C7.2%2C18.8%2C7.2%2C26.1%2C0l114.1-114.2l114.1%2C114.2c7.2%2C7.2%2C18.8%2C7.2%2C26.1%2C0C294.2%2C216.1%2C294.2%2C204.5%2C287%2C197.3z%22%2F%3E%3C%2Fsvg%3E'); /* Flecha personalizada */
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%23444" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>');
     background-repeat: no-repeat;
-    background-position: right 10px top 50%;
-    background-size: 12px auto;
+    background-position: right .7em top 50%;
+    background-size: .65em auto;
 }
 
-.language-select-container select:disabled {
-    background-color: #eceff1; /* Fondo más claro para deshabilitado */
-    cursor: not-allowed;
-    color: #7f8c8d;
-    border-color: #dbe4ea;
+.language-select-container select:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+    outline: none;
 }
 
 
-/* Botón de Subida y Análisis */
+/* Estilos para los botones */
 .file-upload-container button {
-    background-color: #28a745; /* Verde para el botón principal */
+    background-color: #4caf50; /* Verde */
     color: white;
-    padding: 12px 25px;
+    padding: 14px 28px;
+    margin: 10px 5px;
     border: none;
-    border-radius: 8px; /* Bordes un poco más redondeados */
+    border-radius: 8px;
     cursor: pointer;
-    font-size: 1.1em; /* Texto un poco más grande */
-    font-weight: 600;
-    transition: background-color 0.3s ease, transform 0.2s ease; /* Añadir transformación */
-    display: inline-block;
-    margin-top: 15px; /* Más espacio arriba */
+    font-size: 1.1em;
+    transition: background-color 0.3s ease;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Sombra suave */
 }
 
-.file-upload-container button:hover:not(:disabled) {
-    background-color: #218838; /* Verde más oscuro al pasar el mouse */
-    transform: translateY(-2px); /* Efecto de elevación */
+.file-upload-container button:hover {
+    background-color: #45a049; /* Verde más oscuro al pasar el mouse */
+    transform: translateY(-2px); /* Pequeño efecto de elevación */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15); /* Sombra más pronunciada */
 }
 
 .file-upload-container button:disabled {
-    background-color: #aeb6bf; /* Gris deshabilitado más neutro */
+    background-color: #cccccc; /* Gris para deshabilitado */
+    color: #666666;
     cursor: not-allowed;
-    opacity: 0.8;
+    box-shadow: none;
+    transform: none;
 }
 
-/* Mensajes de estado */
-.file-upload-container .message {
-    margin-top: 25px; /* Más espacio */
-    padding: 15px; /* Más padding */
+/* Estilos para los mensajes de estado */
+.message {
+    margin-top: 1em;
+    padding: 1em;
     border-radius: 8px;
-    word-break: break-word;
-    text-align: left;
-    border: 1px solid transparent;
-    font-size: 0.95em;
-    font-weight: 500;
-}
-
-.file-upload-container .message.info {
-    color: #007bff;
-    background-color: #e0f2fe; /* Azul más suave */
-    border-color: #90caf9;
-}
-
-.file-upload-container .message.success {
-    color: #28a745;
-    background-color: #e8f5e9; /* Verde más suave */
-    border-color: #a5d6a7;
-}
-
-.file-upload-container .message.error {
-    color: #dc3545;
-    background-color: #ffebee; /* Rojo más suave */
-    border-color: #ef9a9a;
-}
-
-/* Sección de descarga */
-.file-upload-container .download-section {
-    margin-top: 35px; /* Más espacio */
-    padding: 30px; /* Más padding */
-    border: 1px solid #dbe4ea; /* Borde sutil */
-    border-radius: 10px;
-    background-color: #f0f4f7; /* Fondo ligeramente diferente */
     text-align: center;
-    display: flex; /* Use flexbox for button layout */
-    justify-content: center; /* Center buttons horizontally */
-    align-items: center; /* Center buttons vertically */
-    gap: 1rem; /* Space between buttons */
+    font-weight: bold;
+}
+
+.message.info {
+    background-color: #e3f2fd; /* Azul muy claro */
+    color: #1c3c50;
+    border: 1px solid #bbdefb;
+}
+
+.message.success {
+    background-color: #e8f5e9; /* Verde muy claro */
+    color: #2e7d32;
+    border: 1px solid #c8e6c9;
+}
+
+.message.error {
+    background-color: #fbe9e7; /* Rojo muy claro */
+    color: #d32f2f;
+    border: 1px solid #ffcdd2;
+}
+
+/* Download section */
+.download-section {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background-color: #f0f4f8; /* Very light grey background */
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05); /* Soft shadow */
+    text-align: center;
 }
 
 .download-section p {
-    margin-top: 0;
-    margin-bottom: 20px; /* Más espacio */
-    font-weight: 600; /* Negrita */
-    color: #2c3e50;
-    font-size: 1.1em;
+    color: #555;
+    margin-bottom: 1rem;
+    font-size: 1.05em;
 }
 
-/* Botones de descarga y previsualización */
 .download-section button {
-    background-color: #007bff; /* Azul para los botones */
+    background-color: #64b5f6; /* Light blue */
     color: white;
-    padding: 12px 25px;
+    padding: 12px 24px;
     border: none;
-    border-radius: 8px;
+    border-radius: 6px;
     cursor: pointer;
-    font-size: 1.1em;
-    font-weight: 600;
+    font-size: 1em;
     transition: background-color 0.3s ease, transform 0.2s ease;
 }
-.download-section button:hover:not(:disabled) {
-    background-color: #0056b3;
-    transform: translateY(-2px);
+
+.download-section button:hover {
+    background-color: #2196f3; /* Darker blue on hover */
+    transform: scale(1.05); /* Slightly enlarge on hover */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1); /* Stronger shadow on hover */
 }
 
-/* Modal de Vista Previa */
+/* Styles for the ZIP Preview Modal */
 .preview-modal {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.5); /* Fondo semi-transparente */
+    background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000; /* Asegura que esté encima */
+    z-index: 1000;
 }
 
 .preview-modal-content {
@@ -232,9 +221,9 @@ body {
     padding: 20px;
     border-radius: 8px;
     width: 80%;
-    max-height: 80%;
-    overflow-y: auto; /* Permite el desplazamiento si el contenido es demasiado largo */
-    position: relative; /* Para el posicionamiento del botón de cierre */
+    max-width: 800px;
+    position: relative;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
 }
 
 .close-button {
@@ -243,23 +232,27 @@ body {
     right: 10px;
     font-size: 1.5em;
     cursor: pointer;
-    color: #555;
+    color: #aaa;
 }
+
 .close-button:hover {
-    color: #000;
+    color: #666;
 }
 
 .preview-text {
-    white-space: pre-wrap; /* Conserva el formato y ajusta el texto */
-    font-family: monospace; /* Usa fuente monospace para el código */
-    font-size: 0.9em;
-    color: #333;
-    line-height: 1.4;
+    white-space: pre-wrap; /* Preserve formatting and handle wrapping */
+    word-wrap: break-word;
+    font-family: monospace;
+    background-color: #f7f7f7;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow-x: auto; /* Enable horizontal scrolling if needed */
 }
 
 .preview-modal img {
     max-width: 100%;
-    max-height: 70vh;
-    display: block;
-    margin: 0 auto;
+    height: auto;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
