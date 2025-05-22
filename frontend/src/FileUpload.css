@@ -1,6 +1,3 @@
-/* src/FileUpload.css */
-
-/* Base styles for a clean, modern look */
 body {
     font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
     background-color: #eef2f6; /* Un fondo global muy suave */
@@ -19,7 +16,7 @@ body {
     border-radius: 16px; /* Bordes más redondeados */
     padding: 45px; /* Más padding */
     max-width: 650px; /* Aumenta un poco el ancho */
-    width: 90%; /* Responsivo */
+    /*width: 90%; /* Responsivo */
     text-align: center;
     border: 1px solid #e0e6ed; /* Borde sutil */
 }
@@ -186,7 +183,7 @@ body {
 }
 
 .download-section button {
-    background-color: #64b5f6; /* Light blue */
+    background-color: #47a5f3; /* Light blue */
     color: white;
     padding: 12px 24px;
     border: none;
