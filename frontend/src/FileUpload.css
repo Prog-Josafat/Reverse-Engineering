@@ -110,6 +110,13 @@ body {
     outline: none;
 }
 
+/* NUEVO: Contenedor para agrupar botones */
+.button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+}
 
 /* Estilos para los botones */
 .file-upload-container button {
@@ -121,8 +128,9 @@ body {
     border-radius: 8px;
     cursor: pointer;
     font-size: 1.1em;
-    transition: background-color 0.3s ease;
+    transition: background-color 0.3s ease, transform 0.2s ease;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Sombra suave */
+    min-width: 200px; /* Ancho mínimo para consistencia */
 }
 
 .file-upload-container button:hover {
@@ -137,6 +145,34 @@ body {
     cursor: not-allowed;
     box-shadow: none;
     transform: none;
+}
+
+/* NUEVO: Estilo específico para el botón de reprocesar */
+.reprocess-button {
+    background-color: #ff9800 !important; /* Naranja para diferenciarlo */
+    animation: pulse 2s infinite; /* Animación sutil para llamar la atención */
+}
+
+.reprocess-button:hover {
+    background-color: #f57c00 !important; /* Naranja más oscuro */
+}
+
+.reprocess-button:disabled {
+    background-color: #cccccc !important;
+    animation: none;
+}
+
+/* Animación de pulso sutil para el botón rehacer */
+@keyframes pulse {
+    0% {
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    50% {
+        box-shadow: 0 4px 8px rgba(255, 152, 0, 0.3);
+    }
+    100% {
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
 }
 
 /* Estilos para los mensajes de estado */
@@ -191,6 +227,7 @@ body {
     cursor: pointer;
     font-size: 1em;
     transition: background-color 0.3s ease, transform 0.2s ease;
+    min-width: auto; /* Permitir ancho automático para estos botones */
 }
 
 .download-section button:hover {

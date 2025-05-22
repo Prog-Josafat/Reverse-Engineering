@@ -13,6 +13,11 @@ function FileUpload() {
     const [zipFiles, setZipFiles] = useState([]);
     const [selectedPreviewFile, setSelectedPreviewFile] = useState(null);
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+    
+    // NUEVO: Estados para la funcionalidad de rehacer
+    const [originalZipData, setOriginalZipData] = useState(null);
+    const [hasProcessedResults, setHasProcessedResults] = useState(false);
+    const [isReprocessing, setIsReprocessing] = useState(false);
 
     const handleFileChange = (event) => {
         setSelectedFile(event.target.files[0]);
@@ -20,6 +25,9 @@ function FileUpload() {
         setMessageType('');
         setDownloadUrl(null);
         setDownloadFilename('');
+        // NUEVO: Limpiar estados relacionados con rehacer
+        setOriginalZipData(null);
+        setHasProcessedResults(false);
     };
 
     const handleLanguageChange = (event) => {
@@ -33,23 +41,60 @@ function FileUpload() {
             return;
         }
 
-        setIsUploading(true);
-        setStatusMessage('Uploading file...');
+        await processFile(selectedFile, false);
+    };
+
+    // NUEVO: Función para manejar el reprocesamiento
+    const handleReprocess = async () => {
+        if (!originalZipData) {
+            setStatusMessage('No hay archivo original para reprocesar.');
+            setMessageType('error');
+            return;
+        }
+
+        await processFile(originalZipData, true);
+    };
+
+    // NUEVO: Función unificada para procesar archivos (nueva subida o reproceso)
+    const processFile = async (fileData, isReprocess = false) => {
+        const actionType = isReprocess ? 'Reprocessing' : 'Uploading';
+        const setLoadingState = isReprocess ? setIsReprocessing : setIsUploading;
+        
+        setLoadingState(true);
+        setStatusMessage(`${actionType} file...`);
         setMessageType('info');
         setDownloadUrl(null);
         setDownloadFilename('');
 
-        const formData = new FormData();
-        formData.append('archive_file', selectedFile);
+        let formData = new FormData();
+        
+        if (isReprocess) {
+            // Para reproceso, crear un Blob del ArrayBuffer
+            const blob = new Blob([fileData], { type: 'application/zip' });
+            formData.append('archive_file', blob, 'reprocess.zip');
+        } else {
+            // Para nueva subida, usar el archivo directamente
+            formData.append('archive_file', fileData);
+            // NUEVO: Guardar los datos del archivo original para posibles reprocesos
+            const arrayBuffer = await fileData.arrayBuffer();
+            setOriginalZipData(arrayBuffer);
+        }
+        
         if (targetLanguage) {
             formData.append('target_language', targetLanguage);
         }
 
+        // NUEVO: Agregar parámetro para indicar si es un reproceso
+        if (isReprocess) {
+            formData.append('is_reprocess', 'true');
+        }
+
         try {
-            setStatusMessage('File uploaded. Processing on the backend...');
+            setStatusMessage(`File ${isReprocess ? 'reprocessed' : 'uploaded'}. Processing on the backend...`);
             setMessageType('info');
 
-            const response = await fetch('http://localhost:8000/upload', {
+            const endpoint = isReprocess ? 'http://localhost:8000/reprocess' : 'http://localhost:8000/upload';
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 body: formData,
             });
@@ -68,8 +113,11 @@ function FileUpload() {
                 const url = window.URL.createObjectURL(fileBlob);
                 setDownloadUrl(url);
                 setDownloadFilename(filename);
-                setStatusMessage('Processing complete. Click to download the ZIP file.');
+                setStatusMessage(`Processing complete. Click to download the ${isReprocess ? 'reprocessed' : ''} ZIP file.`);
                 setMessageType('success');
+                
+                // NUEVO: Marcar que tenemos resultados procesados
+                setHasProcessedResults(true);
 
                 await extractZipContents(fileBlob);
 
@@ -102,11 +150,11 @@ function FileUpload() {
             }
 
         } catch (error) {
-            console.error('Error during upload or connection:', error);
-            setStatusMessage(`Connection or upload error: ${error.message}. Ensure the FastAPI server is running.`);
+            console.error(`Error during ${actionType.toLowerCase()} or connection:`, error);
+            setStatusMessage(`Connection or ${actionType.toLowerCase()} error: ${error.message}. Ensure the FastAPI server is running.`);
             setMessageType('error');
         } finally {
-            setIsUploading(false);
+            setLoadingState(false);
         }
     };
 
@@ -228,7 +276,7 @@ function FileUpload() {
                     id="archiveFile"
                     accept=".zip"
                     onChange={handleFileChange}
-                    disabled={isUploading}
+                    disabled={isUploading || isReprocessing}
                     className="hidden-file-input"
                 />
                 {selectedFile && <p className="selected-file-name">Selected file: {selectedFile.name}</p>}
@@ -239,7 +287,7 @@ function FileUpload() {
                         id="targetLanguage"
                         value={targetLanguage}
                         onChange={handleLanguageChange}
-                        disabled={isUploading}
+                        disabled={isUploading || isReprocessing}
                     >
                         <option value="">Summarize COBOL Only (No transcription)</option>
                         <option value="Java">Java</option>
@@ -255,12 +303,27 @@ function FileUpload() {
                     </select>
                 </div>
 
-                <button
-                    onClick={handleUpload}
-                    disabled={!selectedFile || isUploading}
-                >
-                    {isUploading ? 'Processing...' : 'Upload and Analyze'}
-                </button>
+                <div className="button-group">
+                    <button
+                        type="button"
+                        onClick={handleUpload}
+                        disabled={!selectedFile || isUploading || isReprocessing}
+                    >
+                        {isUploading ? 'Processing...' : 'Upload and Analyze'}
+                    </button>
+                    
+                    {/* NUEVO: Botón de Rehacer */}
+                    {hasProcessedResults && originalZipData && (
+                        <button
+                            type="button"
+                            onClick={handleReprocess}
+                            disabled={isUploading || isReprocessing}
+                            className="reprocess-button"
+                        >
+                            {isReprocessing ? 'Reprocessing...' : 'Reprocess Files'}
+                        </button>
+                    )}
+                </div>
             </form>
 
             {statusMessage && (
