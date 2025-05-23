@@ -1,55 +1,64 @@
-body {
-    font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-    background-color: #eef2f6; /* Un fondo global muy suave */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    margin: 0;
-    color: #34495e; /* Color de texto base */
-}
-
 /* Contenedor principal de la aplicación */
 .file-upload-container {
-    background-color: #ffffff; /* Fondo blanco para el contenedor */
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08); /* Sombra más pronunciada pero suave */
-    border-radius: 16px; /* Bordes más redondeados */
-    padding: 45px; /* Más padding */
-    max-width: 650px; /* Aumenta un poco el ancho */
-    /*width: 90%; /* Responsivo */
+    background-color: #ffffff;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+    border-radius: 16px;
+    padding: 30px 45px 45px 45px;
+    max-width: 700px;
     text-align: center;
-    border: 1px solid #e0e6ed; /* Borde sutil */
+    border: 1px solid #e0e6ed;
+    margin: 20px auto;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* Título principal de la aplicación */
 .file-upload-container h2 {
-    color: #2c3e50; /* Un azul oscuro más sobrio */
-    font-size: 2.2rem; /* Tamaño de fuente más grande */
-    margin-bottom: 2rem; /* Más espacio debajo */
-    font-weight: 600; /* Un poco más de grosor */
+    color: #2c3e50;
+    font-size: 2.2rem;
+    margin-bottom: 1.5rem;
+    font-weight: 600;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 15px;
 }
 
-/* Estilos para el formulario */
-.file-upload-container form {
-    margin-bottom: 2.5rem; /* Más espacio debajo del formulario */
-    padding: 30px; /* Más padding */
-    border: 1px solid #dcdfe4; /* Borde sutil */
-    border-radius: 10px; /* Bordes redondeados */
-    background-color: #f8f9fa; /* Fondo muy claro para el formulario */
-    display: block; /* Asegura que ocupe su propio bloque */
+.global-language-select {
+    margin-bottom: 25px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e0e6ed;
     text-align: left;
-    width: 100%;
-    box-sizing: border-box;
 }
 
-/* Estilo para el input de archivo (oculto y su label personalizado) */
+.file-upload-container h3 {
+  margin-top: 20px;
+  margin-bottom: 15px;
+  color: #333;
+  font-size: 1.2em;
+  font-weight: 500;
+}
+
+.input-section {
+  background-color: #f8f9fa;
+  padding: 25px;
+  border-radius: 10px;
+  border: 1px solid #dcdfe4;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.separator {
+  text-align: center;
+  font-weight: bold;
+  color: #555;
+  margin: 30px 0;
+  font-size: 1.1em;
+}
+
 .hidden-file-input {
-    display: none; /* Oculta el input nativo */
+    display: none;
 }
 
 .file-input-label {
-    display: block; /* Hace que ocupe todo el ancho */
-    background-color: #007bff; /* Azul primario */
+    display: block;
+    background-color: #007bff;
     color: white;
     padding: 12px 20px;
     border-radius: 6px;
@@ -57,12 +66,11 @@ body {
     font-size: 1em;
     transition: background-color 0.3s ease;
     text-align: center;
-    margin-bottom: 15px; /* Espacio debajo */
+    margin-bottom: 15px;
     font-weight: 500;
 }
-
 .file-input-label:hover {
-    background-color: #0056b3; /* Azul más oscuro al pasar el mouse */
+    background-color: #0056b3;
 }
 
 .selected-file-name {
@@ -70,12 +78,29 @@ body {
     font-size: 0.95em;
     color: #555;
     text-align: center;
+    margin-bottom: 15px;
 }
 
-/* Dropdown para la selección de lenguaje */
-.language-select-container {
-    margin-bottom: 20px;
-    text-align: center;
+.repo-url-input {
+  width: calc(100% - 22px);
+  padding: 12px 10px;
+  margin-bottom: 15px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 1em;
+  box-sizing: border-box;
+}
+.repo-url-input:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+    outline: none;
+}
+
+.common-controls {
+  margin-top: 25px;
+  padding-top: 25px;
+  border-top: 1px solid #e0e6ed;
+  text-align: left;
 }
 
 .language-select-container label {
@@ -88,205 +113,320 @@ body {
 
 .language-select-container select {
     width: 100%;
-    padding: 10px;
+    padding: 12px 10px;
     border: 1px solid #ccc;
-    border-radius: 5px;
+    border-radius: 6px;
     font-size: 1em;
     color: #444;
     background-color: white;
-    appearance: none; /* Quita los estilos nativos del sistema */
-    -webkit-appearance: none; /* Para Safari */
-    -moz-appearance: none; /* Para Firefox */
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
     cursor: pointer;
     background-image: url('data:image/svg+xml;utf8,<svg fill="%23444" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>');
     background-repeat: no-repeat;
     background-position: right .7em top 50%;
     background-size: .65em auto;
+    box-sizing: border-box;
 }
-
 .language-select-container select:focus {
     border-color: #007bff;
     box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
     outline: none;
 }
 
-/* NUEVO: Contenedor para agrupar botones */
 .button-group {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    align-items: center;
+    align-items: stretch;
+    gap: 15px; /* Aumentado el espacio entre botones de reproceso */
+    margin-top: 15px;
 }
 
-/* Estilos para los botones */
-.file-upload-container button {
-    background-color: #4caf50; /* Verde */
+.action-button {
+    background-color: #007bff;
     color: white;
-    padding: 14px 28px;
-    margin: 10px 5px;
+    padding: 12px 20px;
     border: none;
-    border-radius: 8px;
+    border-radius: 6px;
     cursor: pointer;
-    font-size: 1.1em;
+    font-size: 1.05em;
+    font-weight: 500;
     transition: background-color 0.3s ease, transform 0.2s ease;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Sombra suave */
-    min-width: 200px; /* Ancho mínimo para consistencia */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    margin-top: 10px;
+    box-sizing: border-box;
 }
-
-.file-upload-container button:hover {
-    background-color: #45a049; /* Verde más oscuro al pasar el mouse */
-    transform: translateY(-2px); /* Pequeño efecto de elevación */
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15); /* Sombra más pronunciada */
+.action-button:hover:not(:disabled) {
+    background-color: #0056b3;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
 }
-
-.file-upload-container button:disabled {
-    background-color: #cccccc; /* Gris para deshabilitado */
+.action-button:disabled {
+    background-color: #cccccc;
     color: #666666;
     cursor: not-allowed;
     box-shadow: none;
     transform: none;
 }
 
-/* NUEVO: Estilo específico para el botón de reprocesar */
 .reprocess-button {
-    background-color: #ff9800 !important; /* Naranja para diferenciarlo */
-    animation: pulse 2s infinite; /* Animación sutil para llamar la atención */
+    background-color: #ff9800 !important;
+    color: white !important;
+    padding: 12px 20px;
+    margin: 0;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1.05em;
+    font-weight: 500;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    animation: pulse 2s infinite;
+    box-sizing: border-box;
 }
-
-.reprocess-button:hover {
-    background-color: #f57c00 !important; /* Naranja más oscuro */
+.repo-reprocess-button { /* Para diferenciarlo si es necesario */
+    background-color: #fd7e14 !important; /* Un naranja ligeramente diferente */
 }
-
+.reprocess-button:hover:not(:disabled) {
+    background-color: #f57c00 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
 .reprocess-button:disabled {
     background-color: #cccccc !important;
+    color: #666666 !important;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
     animation: none;
 }
 
-/* Animación de pulso sutil para el botón rehacer */
 @keyframes pulse {
-    0% {
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    }
-    50% {
-        box-shadow: 0 4px 8px rgba(255, 152, 0, 0.3);
-    }
-    100% {
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    }
+    0% { box-shadow: 0 4px 8px rgba(255, 152, 0, 0.2); }
+    50% { box-shadow: 0 6px 12px rgba(255, 152, 0, 0.4); }
+    100% { box-shadow: 0 4px 8px rgba(255, 152, 0, 0.2); }
 }
 
-/* Estilos para los mensajes de estado */
 .message {
-    margin-top: 1em;
-    padding: 1em;
+    margin-top: 1.5em;
+    padding: 1em 1.5em;
     border-radius: 8px;
     text-align: center;
-    font-weight: bold;
+    font-weight: 500;
+    font-size: 1em;
 }
+.message.info { background-color: #e3f2fd; color: #1c3c50; border: 1px solid #bbdefb; }
+.message.success { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+.message.error { background-color: #fbe9e7; color: #d32f2f; border: 1px solid #ffcdd2; }
 
-.message.info {
-    background-color: #e3f2fd; /* Azul muy claro */
-    color: #1c3c50;
-    border: 1px solid #bbdefb;
-}
-
-.message.success {
-    background-color: #e8f5e9; /* Verde muy claro */
-    color: #2e7d32;
-    border: 1px solid #c8e6c9;
-}
-
-.message.error {
-    background-color: #fbe9e7; /* Rojo muy claro */
-    color: #d32f2f;
-    border: 1px solid #ffcdd2;
-}
-
-/* Download section */
 .download-section {
     margin-top: 2rem;
     padding: 1.5rem;
-    background-color: #f0f4f8; /* Very light grey background */
+    background-color: #f0f4f8;
     border-radius: 12px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05); /* Soft shadow */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
     text-align: center;
 }
-
-.download-section p {
-    color: #555;
-    margin-bottom: 1rem;
-    font-size: 1.05em;
-}
-
 .download-section button {
-    background-color: #47a5f3; /* Light blue */
+    background-color: #17a2b8;
     color: white;
     padding: 12px 24px;
     border: none;
     border-radius: 6px;
     cursor: pointer;
     font-size: 1em;
+    font-weight: 500;
     transition: background-color 0.3s ease, transform 0.2s ease;
-    min-width: auto; /* Permitir ancho automático para estos botones */
+    min-width: auto;
+    margin: 5px;
+}
+.download-section button:hover:not(:disabled) {
+    background-color: #138496;
+    transform: scale(1.03) translateY(-1px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+}
+.download-section button:disabled {
+  background-color: #a0d3db;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
-.download-section button:hover {
-    background-color: #2196f3; /* Darker blue on hover */
-    transform: scale(1.05); /* Slightly enlarge on hover */
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1); /* Stronger shadow on hover */
-}
-
-/* Styles for the ZIP Preview Modal */
 .preview-modal {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+    background-color: rgba(0, 0, 0, 0.65);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 1000;
+    padding: 20px;
+    box-sizing: border-box;
 }
 
 .preview-modal-content {
     background-color: white;
-    padding: 20px;
-    border-radius: 8px;
-    width: 80%;
-    max-width: 800px;
+    padding: 25px 30px;
+    border-radius: 12px;
+    width: 90%;
+    overflow: auto;
+    max-width: 800px; 
+    max-height: 90vh; 
+    min-height: 400px; 
     position: relative;
-    box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+}
+
+.preview-modal-content h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #2c3e50;
+    font-size: 1.4em;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
 }
 
 .close-button {
     position: absolute;
-    top: 10px;
-    right: 10px;
-    font-size: 1.5em;
+    top: 15px;
+    right: 20px;
+    font-size: 1.8em;
+    font-weight: bold;
     cursor: pointer;
-    color: #aaa;
+    color: #888;
+    line-height: 1;
+    padding: 5px;
 }
+.close-button:hover { color: #333; }
 
-.close-button:hover {
-    color: #666;
+.preview-file-list {
+  list-style-type: none;
+  padding-left: 0;
+  max-height: 180px; 
+  overflow-y: auto;
+  border: 1px solid #e0e0e0;
+  margin-bottom: 20px;
+  border-radius: 6px;
+}
+.preview-file-list li {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  font-size: 0.95em;
+  color: #333;
+  word-break: break-all;
+}
+.preview-file-list li:last-child { border-bottom: none; }
+.preview-file-list li:hover { background-color: #e9ecef; color: #0056b3; }
+.preview-file-list li.selected-file-preview { background-color: #007bff; color: white; font-weight: 500; }
+
+.preview-content-area {
+    flex-grow: 1; 
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; 
+    min-height: 200px; 
+}
+.preview-content-area h4 {
+    margin-top: 0; 
+    margin-bottom: 10px;
+    color: #34495e;
+    font-size: 1.1em;
+    flex-shrink: 0; 
 }
 
 .preview-text {
-    white-space: pre-wrap; /* Preserve formatting and handle wrapping */
+    white-space: pre-wrap;
     word-wrap: break-word;
-    font-family: monospace;
-    background-color: #f7f7f7;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    overflow-x: auto; /* Enable horizontal scrolling if needed */
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+    background-color: #f8f9fa;
+    padding: 15px;
+    border: 1px solid #dcdfe4;
+    border-radius: 6px;
+    color: black;
+    overflow: auto; 
+    font-size: 0.9em;
+    line-height: 1.6;
+    flex-grow: 1; 
+    min-height: 100px; 
+}
+.error-text { color: #d32f2f; background-color: #fbe9e7; }
+
+.preview-image {
+    max-width: 100%;
+    max-height: 350px; 
+    height: auto;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin: 10px auto; 
+    display: block;
+    object-fit: contain;
+    flex-shrink: 0;
 }
 
-.preview-modal img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 4px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+/* Estilo para el placeholder de PDF en el preview */
+.pdf-placeholder-preview {
+    border: 1px solid #ccc;
+    margin-top: 5px;
+    padding: 20px; /* Más padding para el mensaje */
+    background-color: #e9ecef; 
+    flex-grow: 1; 
+    display: flex; /* Para centrar el texto */
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 50px; /* Altura mínima para el placeholder */
+    border-radius: 6px;
+}
+.pdf-placeholder-preview p {
+    color: #555;
+    font-style: italic;
+}
+
+.pdf-page-info { /* Este estilo ya no es necesario si no se usa react-pdf */
+    /* font-size: 0.9em;
+    color: #555;
+    margin-top: 5px;
+    flex-shrink: 0; */
+}
+
+.download-previewed-file-button {
+    margin-top: 15px;
+    padding: 10px 18px;
+    background-color: #6c757d; 
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.95em;
+    transition: background-color 0.2s;
+    align-self: flex-start; 
+    flex-shrink: 0;
+}
+.download-previewed-file-button:hover {
+    background-color: #5a6268;
+}
+.download-previewed-file-button:disabled {
+    background-color: #adb5bd;
+    cursor: not-allowed;
+}
+
+.preview-placeholder {
+    text-align: center;
+    color: #777;
+    margin-top: 20px;
+    font-style: italic;
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }

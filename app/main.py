@@ -9,6 +9,12 @@ import zipfile
 import codecs
 import traceback
 import re
+import os
+import shutil
+import tempfile
+import subprocess # For cloning GitHub repos
+import time # For adding delays in cleanup
+import errno # For checking error numbers in cleanup
 
 import anyio
 
@@ -30,6 +36,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- ReportLab imports ---
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Preformatted, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import letter
+
+# Helper function to handle readonly errors during rmtree on Windows
+def handle_remove_readonly(func, path, exc):
+    """
+    Error handler for shutil.rmtree.
+    If the error is due to an access error (read only file)
+    it attempts to add write permission and then retries the
+    remove. If the error is for another reason it re-raises
+    the error.
+    """
+    import stat
+    excvalue = exc[1]
+    if func in (os.rmdir, os.remove, os.unlink) and excvalue.errno == errno.EACCES:
+        os.chmod(path, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)  # 0777
+        func(path)
+    else:
+        raise
 
 # --- ReportLab imports ---
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Preformatted, PageBreak
@@ -595,6 +623,263 @@ def process_zip_files_sync(zip_data: bytes, target_language: str = None, is_repr
     return analysis_results, transcription_results, application_guide_results, processed_file_count
 
 
+# NEW: Helper function to clone GitHub repository
+def clone_repo(repo_url: str, target_path: str) -> str:
+    """
+    Clones a public GitHub repository to the specified target_path.
+    Returns the name of the cloned repository directory.
+    """
+    try:
+        print(f"Attempting to clone repository: {repo_url} into {target_path}")
+        # Use --depth 1 for a shallow clone to save time and space
+        subprocess.run(
+            ["git", "clone", "--depth", "1", repo_url, target_path],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        repo_name = os.path.basename(target_path) # Or parse from URL if preferred
+        print(f"Repository '{repo_name}' cloned successfully to '{target_path}'.")
+        return repo_name
+    except subprocess.CalledProcessError as e:
+        error_message = f"Error cloning repository {repo_url}. Return code: {e.returncode}\nStdout: {e.stdout}\nStderr: {e.stderr}"
+        print(error_message, file=sys.stderr)
+        raise Exception(error_message)
+    except FileNotFoundError:
+        error_message = "Error: Git command not found. Please ensure Git is installed and in your system's PATH."
+        print(error_message, file=sys.stderr)
+        raise Exception(error_message)
+    except Exception as e:
+        error_message = f"An unexpected error occurred during repository cloning: {e}"
+        print(error_message, file=sys.stderr)
+        raise Exception(error_message)
+
+# NEW: Synchronous Repository Files Processing Logic (will run in a separate thread)
+def process_repository_files_sync(repo_path: str, target_language: str = None, is_reprocess: bool = False):
+    """
+    Processes files from a cloned repository directory.
+    Separates COBOL files for combined analysis and other files for individual analysis.
+    Performs transcription for individual COBOL files if requested.
+    Generates application guide for transcribed COBOL files.
+    Returns analysis_results, transcription_results, and application_guide_results.
+    NEW: Added is_reprocess parameter.
+    """
+    repo_process_indicator = "(REPO_REPROCESS)" if is_reprocess else "(REPO_PROCESS)"
+    print(f"--> Entered process_repository_files_sync function for path: {repo_path} {repo_process_indicator}")
+
+    analysis_results = []
+    transcription_results = []
+    application_guide_results = []
+    processed_file_count = 0
+
+    document_extensions = ('.pdf', '.txt')
+    cobol_extensions = ('.cbl', '.cob')
+    processable_extensions = document_extensions + cobol_extensions
+
+    valid_target_languages = list(LANGUAGE_EXTENSIONS.keys())
+    request_transcription_for_cobol = False
+
+    if target_language and target_language in valid_target_languages:
+        request_transcription_for_cobol = True
+        print(f"  Transcription requested for COBOL to: {target_language} {repo_process_indicator}")
+    elif target_language:
+        print(f"  Invalid target language received: '{target_language}'. COBOL will be summarized only. {repo_process_indicator}", file=sys.stderr)
+        target_language = None
+    else:
+        print(f"  No target language selected for COBOL transcription. {repo_process_indicator}")
+
+    cobol_files_content = []
+    other_files_to_process = []
+
+    print(f"Collecting files within the repository path: {repo_path}...")
+    for root, _, files in os.walk(repo_path):
+        # Skip .git directory
+        if '.git' in root.split(os.sep):
+            continue
+        for filename in files:
+            file_path = os.path.join(root, filename)
+            file_extension = os.path.splitext(filename)[1].lower()
+
+            if file_extension in processable_extensions:
+                processed_file_count += 1
+                try:
+                    if file_extension == '.pdf':
+                        with open(file_path, 'rb') as f:
+                            pdf_data = f.read()
+                        other_files_to_process.append({
+                            'filename': filename, 'data': pdf_data, 'mime_type': 'application/pdf', 'extension': file_extension
+                        })
+                        print(f"  Collected PDF file: {filename} {repo_process_indicator}")
+                    elif file_extension == '.txt':
+                        with open(file_path, 'r', encoding='utf-8', errors='latin-1') as f:
+                            txt_content = f.read()
+                        other_files_to_process.append({
+                            'filename': filename, 'text': txt_content, 'mime_type': 'text/plain', 'extension': file_extension
+                        })
+                        print(f"  Collected TXT file: {filename} {repo_process_indicator}")
+                    elif file_extension in cobol_extensions:
+                        with open(file_path, 'r', encoding='utf-8', errors='latin-1') as f:
+                            cobol_content = f.read()
+                        cobol_files_content.append({'filename': filename, 'text': cobol_content})
+                        print(f"  Collected COBOL file: {filename} {repo_process_indicator}")
+                except Exception as e:
+                    error_msg = f"Error collecting/reading file '{filename}' from repo {repo_process_indicator}: {e}"
+                    print(f"--- {error_msg} ---", file=sys.stderr)
+                    analysis_results.append({'filename': filename, 'status': f"Collection Error {file_extension.upper().strip('.')} {repo_process_indicator}", 'text': error_msg})
+            else:
+                print(f"  Ignoring file with unsupported extension: {filename} {repo_process_indicator}")
+
+    # The rest of the processing logic (API calls, etc.) is very similar to process_zip_files_sync
+    # For brevity, I'm showing the structure. You'd essentially adapt the API call sections
+    # from process_zip_files_sync here, using the collected 'other_files_to_process' and 'cobol_files_content'.
+    # --- Process Other Files (PDFs, TXT) Individually for Analysis ---
+    # (Similar loop and logic as in process_zip_files_sync, using data from other_files_to_process)
+    # ... (implementation detail: copy and adapt from process_zip_files_sync)
+    for file_data_obj in other_files_to_process:
+        file_name = file_data_obj['filename']
+        file_extension = file_data_obj['extension']
+        mime_type = file_data_obj['mime_type']
+        current_file_data = file_data_obj.get('data')
+        current_file_text = file_data_obj.get('text')
+
+        print(f"\n  --> Processing individual file {file_name} for Analysis {repo_process_indicator}")
+        analysis_status = f"Error: Processing failed for {file_name} {repo_process_indicator}"
+        analysis_text = f"Could not process file for analysis: {file_name}"
+        analysis_prompt_template = DOCUMENT_ANALYSIS_PROMPT_TEMPLATE
+
+        try:
+            print(f"    --> Attempting API call for Analysis/Summary for {file_name} {repo_process_indicator}")
+            if current_file_text is not None: # TXT files
+                analysis_chain = analysis_prompt_template | llm_analysis
+                summary_response_lc = analysis_chain.invoke({'file_content': current_file_text})
+                if hasattr(summary_response_lc, 'content') and summary_response_lc.content:
+                    analysis_status = f"OK Analysis for {file_name} (LangChain {repo_process_indicator})"
+                    analysis_text = summary_response_lc.content
+                else:
+                    analysis_status = f"Error: LangChain response empty for {file_name} {repo_process_indicator}"
+                    analysis_text = f"LangChain invoke returned no content for analysis of {file_name}."
+            elif current_file_data is not None and file_extension == '.pdf': # PDF files
+                pdf_analysis_parts = [types.Part.from_text(text=analysis_prompt_template.format(file_content=""))]
+                pdf_analysis_parts.append(types.Part.from_bytes(data=current_file_data, mime_type=mime_type))
+                summary_response = client.models.generate_content(
+                    model=MODEL_NAME, contents=pdf_analysis_parts,
+                    config=types.GenerateContentConfig(max_output_tokens=fixed_max_tokens_analysis)
+                )
+                analysis_status, analysis_text = handle_gemini_response_direct(summary_response, "Analysis", file_name)
+            else:
+                analysis_status = f"Error: No processable content for {file_name} {repo_process_indicator}"
+                analysis_text = f"No text or binary content for {file_name}."
+            
+            analysis_results.append({'filename': file_name, 'status': analysis_status, 'text': analysis_text})
+        except Exception as e:
+            error_text = f"Exception during API call for {file_name} {repo_process_indicator}: {e}"
+            print(f"--- {error_text} ---", file=sys.stderr)
+            analysis_results.append({'filename': file_name, 'status': f"Exception during Analysis {repo_process_indicator}", 'text': error_text})
+
+    # --- Process COBOL Files Collectively for Analysis ---
+    # (Similar loop and logic as in process_zip_files_sync, using data from cobol_files_content)
+    # ... (implementation detail: copy and adapt from process_zip_files_sync)
+    if cobol_files_content:
+        print(f"\n  --> Processing {len(cobol_files_content)} COBOL files for combined analysis {repo_process_indicator}")
+        combined_cobol_content_str = ""
+        for cobol_file in cobol_files_content:
+            combined_cobol_content_str += f"--- Start File: {cobol_file['filename']} ---\n{cobol_file['text']}\n--- End File: {cobol_file['filename']} ---\n\n"
+        
+        combined_analysis_status = f"Error: Combined COBOL analysis failed ({process_type})"
+        combined_analysis_text = "No combined COBOL analysis could be generated."
+        try:
+            analysis_chain_combined = MULTI_COBOL_ANALYSIS_PROMPT_TEMPLATE | llm_analysis
+            combined_response_lc = analysis_chain_combined.invoke({'combined_cobol_content': combined_cobol_content_str})
+            if hasattr(combined_response_lc, 'content') and combined_response_lc.content:
+                combined_analysis_status = f"OK Combined Analysis for {len(cobol_files_content)} COBOL files (LangChain {repo_process_indicator})"
+                combined_analysis_text = combined_response_lc.content
+            else:
+                combined_analysis_status = f"Error: LangChain response empty for combined COBOL {repo_process_indicator}"
+                combined_analysis_text = "LangChain invoke returned no content for combined COBOL analysis."
+        except Exception as e:
+            error_text = f"Exception during LangChain Combined COBOL Analysis {repo_process_indicator}: {e}"
+            print(f"--- {error_text} ---", file=sys.stderr)
+            combined_analysis_status = f"Exception LangChain Combined Analysis {repo_process_indicator}"
+            combined_analysis_text = error_text
+        
+        analysis_results.append({
+            'filename': f"Combined_COBOL_Program_Analysis_({len(cobol_files_content)}_files).txt",
+            'status': combined_analysis_status, 'text': combined_analysis_text
+        })
+
+    # --- Process COBOL Files Individually for Transcription (if requested) ---
+    # (Similar loop and logic as in process_zip_files_sync, using data from cobol_files_content)
+    # ... (implementation detail: copy and adapt from process_zip_files_sync, including application guide generation)
+    if request_transcription_for_cobol and target_language:
+        target_ext = LANGUAGE_EXTENSIONS.get(target_language, '.txt')
+        for cobol_file in cobol_files_content:
+            file_name = cobol_file['filename']
+            current_file_text = cobol_file['text']
+            transcription_status = f"Omitted: Prep failed for {file_name} {repo_process_indicator}"
+            transcribed_result_text = f"Transcription not performed for {file_name}."
+
+            try:
+                transcription_chain = CODE_TRANSCRIPTION_PROMPT_TEMPLATE | llm_transcription
+                transcription_response_lc = transcription_chain.invoke({'file_content': current_file_text, 'target_language': target_language})
+                if hasattr(transcription_response_lc, 'content') and transcription_response_lc.content:
+                    transcription_status = f"OK Transcription for {file_name} (LangChain {repo_process_indicator})"
+                    transcribed_code = transcription_response_lc.content
+                    match = re.search(r'```(?:[a-zA-Z0-9_+#-]+)?\n(.*?)\n```', transcribed_code, re.DOTALL)
+                    transcribed_result_text = match.group(1).strip() if match else transcribed_code.strip()
+                else:
+                    transcription_status = f"Error: LangChain response empty for {file_name} {repo_process_indicator}"
+                    transcribed_result_text = f"LangChain invoke returned no content for transcription of {file_name}."
+            except Exception as e:
+                error_text = f"Exception during LangChain Transcription for {file_name} {repo_process_indicator}: {e}"
+                print(f"--- {error_text} ---", file=sys.stderr)
+                transcription_status = f"Exception LangChain Transcription {repo_process_indicator}"
+                transcribed_result_text = error_text
+            
+            transcription_results.append({
+                'filename': file_name, 'status': transcription_status,
+                'text': transcribed_result_text, 'target_extension': target_ext
+            })
+
+            # Generate Application Guide
+            if transcription_status.startswith("OK"):
+                app_guide_status = f"Error: App Guide generation failed {repo_process_indicator}"
+                app_guide_text = "Could not generate application guide."
+                try:
+                    app_guide_chain = APPLICATION_GUIDE_PROMPT_TEMPLATE | llm_analysis
+                    app_guide_response_lc = app_guide_chain.invoke({
+                        'migrated_code_content': transcribed_result_text, 'target_language': target_language
+                    })
+                    if hasattr(app_guide_response_lc, 'content') and app_guide_response_lc.content:
+                        app_guide_status = f"OK Application Guide for {file_name} ({target_language}) (LangChain {repo_process_indicator})"
+                        app_guide_text = app_guide_response_lc.content
+                    else:
+                        app_guide_status = f"Error: LangChain response empty for App Guide of {file_name} {repo_process_indicator}"
+                        app_guide_text = f"LangChain invoke returned no content for App Guide of {file_name}."
+                except Exception as e:
+                    error_text = f"Exception during LangChain App Guide for {file_name} {repo_process_indicator}: {e}"
+                    print(f"--- {error_text} ---", file=sys.stderr)
+                    app_guide_status = f"Exception LangChain App Guide {repo_process_indicator}"
+                    app_guide_text = error_text
+                application_guide_results.append({
+                    'filename': file_name, 'status': app_guide_status,
+                    'text': app_guide_text, 'target_language': target_language
+                })
+            else: # Transcription failed or omitted
+                 application_guide_results.append({
+                    'filename': file_name, 'status': f"Omitted: Transcription error for {file_name} {repo_process_indicator}",
+                    'text': f"App guide for '{file_name}' omitted due to transcription error {repo_process_indicator}.",
+                    'target_language': target_language
+                })
+    else: # No transcription requested or no COBOL files
+        for cobol_file in cobol_files_content: # Ensure entries for all cobol files
+            transcription_results.append({
+                'filename': cobol_file['filename'], 'status': "Omitted: Not requested or no COBOL files",
+                'text': "Transcription not performed."
+            })
+
+    print(f"Repository file processing completed. Returning results.")
+    return analysis_results, transcription_results, application_guide_results, processed_file_count
+
 # Helper function to create final ZIP file
 def create_final_zip(analysis_results, transcription_results, application_guide_results, 
                     archive_filename, target_language, is_reprocess=False):
@@ -602,7 +887,8 @@ def create_final_zip(analysis_results, transcription_results, application_guide_
     Creates the final ZIP file with all results.
     """
     process_suffix = "_reprocessed" if is_reprocess else ""
-    
+    base_archive_name = archive_filename.replace('.zip', '') if archive_filename.endswith('.zip') else archive_filename
+
     print(f"--> Starting final ZIP file creation{' (REPROCESS)' if is_reprocess else ''}...")
     final_zip_buffer = io.BytesIO()
     
@@ -621,7 +907,7 @@ def create_final_zip(analysis_results, transcription_results, application_guide_
         style_error.textColor = (1, 0, 0)
 
         title_suffix = " (Reprocessed)" if is_reprocess else ""
-        story.append(Paragraph(f"ZIP File Analysis: {archive_filename}{title_suffix}", style_title))
+        story.append(Paragraph(f"Content Analysis: {base_archive_name}{title_suffix}", style_title))
         story.append(Spacer(1, 0.2*letter[1]))
 
         if not analysis_results:
@@ -692,7 +978,7 @@ def create_final_zip(analysis_results, transcription_results, application_guide_
         with zipfile.ZipFile(final_zip_buffer, 'w', zipfile.ZIP_DEFLATED) as final_zip:
             # Add analysis PDF
             if analysis_pdf_bytes is not None:
-                analysis_pdf_filename = f"analysis_summary_{archive_filename.replace('.zip', '')}{process_suffix}.pdf"
+                analysis_pdf_filename = f"analysis_summary_{base_archive_name}{process_suffix}.pdf"
                 final_zip.writestr(analysis_pdf_filename, analysis_pdf_bytes)
                 print(f"  Added '{analysis_pdf_filename}' to the ZIP.")
             else:
@@ -857,6 +1143,81 @@ async def reprocess_archive_endpoint(
         traceback.print_exc(file=sys.stderr)
         return JSONResponse(status_code=500, content={"error": f"Error creating the reprocessed final ZIP file: {e}"})
 
+# NEW: Endpoint to analyze a GitHub repository
+@app.post("/analyze_repo")
+async def analyze_repo_endpoint(
+    repo_url: str = Form(...),
+    target_language: str = Form(None),
+    is_reprocess: bool = Form(False) # NEW: Flag for reprocessing
+):
+    repo_process_indicator = "(REPROCESS)" if is_reprocess else "(INITIAL)"
+    print(f"--> Request received in /analyze_repo async route {repo_process_indicator}")
+    print(f"  Repository URL: {repo_url}")
+    print(f"  Target language: {target_language} / Is Reprocess: {is_reprocess}")
+
+    # Basic validation for GitHub URL (can be improved)
+    if not repo_url.startswith("https://github.com/") or not repo_url.endswith(".git"):
+        # Allow URLs without .git at the end for user convenience
+        if not repo_url.startswith("https://github.com/"):
+             raise HTTPException(status_code=400, detail="Invalid GitHub repository URL format. Must start with 'https://github.com/'.")
+        if not repo_url.endswith(".git"):
+            repo_url += ".git" # Append .git if missing for cloning
+            print(f"  Appended .git to repo_url: {repo_url}")
+
+
+    temp_dir = None
+    try:
+        temp_dir = tempfile.mkdtemp()
+        print(f"  Created temporary directory: {temp_dir}")
+
+        # Derive a base name for the output from the repo URL
+        repo_name_for_file = repo_url.split('/')[-1].replace('.git', '')
+
+        cloned_repo_path = os.path.join(temp_dir, repo_name_for_file)
+        actual_repo_name = clone_repo(repo_url, cloned_repo_path) # actual_repo_name might be slightly different if git changes it
+
+        analysis_results, transcription_results, application_guide_results, processed_file_count = await anyio.to_thread.run_sync(
+            process_repository_files_sync, # Use the new function
+            cloned_repo_path,
+            target_language,
+            is_reprocess # Pass the flag
+        )
+        print(f"--> Finished process_repository_files_sync. Results: Analysis={len(analysis_results)}, Transcription={len(transcription_results)}, AppGuides={len(application_guide_results)}.")
+
+        final_zip_bytes = create_final_zip(
+            analysis_results,
+            transcription_results,
+            application_guide_results,
+            actual_repo_name, # Use the actual cloned repo name for the ZIP content
+            target_language,
+            is_reprocess=is_reprocess # Pass the flag
+        )
+
+        if is_reprocess:
+            output_zip_filename = f"analysis_results_{actual_repo_name}_reprocessed.zip"
+        else:
+            output_zip_filename = f"analysis_results_{actual_repo_name}.zip"
+        return Response(content=final_zip_bytes, media_type='application/zip', headers={
+            'Content-Disposition': f'attachment; filename="{output_zip_filename}"',
+            'Content-Length': str(len(final_zip_bytes))
+        })
+    except Exception as e:
+        print(f"--- Error in /analyze_repo endpoint: {e} ---", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        raise HTTPException(status_code=500, detail=f"Error processing GitHub repository: {str(e)}")
+    finally:
+        if temp_dir and os.path.exists(temp_dir):
+            try:
+                shutil.rmtree(temp_dir, onerror=handle_remove_readonly)
+                print(f"  Cleaned up temporary directory: {temp_dir}")
+            except Exception as e_rm:
+                print(f"  Warning: Could not completely remove temp directory {temp_dir} after first attempt: {e_rm}. Retrying after delay.")
+                time.sleep(1) # Wait 1 second
+                try:
+                    shutil.rmtree(temp_dir, ignore_errors=True) # Attempt again, ignoring errors this time
+                    print(f"  Successfully cleaned up temporary directory {temp_dir} after delay and retry.")
+                except Exception as e_rm_retry:
+                    print(f"  Error: Failed to clean up temporary directory {temp_dir} even after retry: {e_rm_retry}", file=sys.stderr)
 
 if __name__ == "__main__":
     import uvicorn
